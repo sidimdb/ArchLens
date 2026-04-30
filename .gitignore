@@ -1,0 +1,214 @@
+# ============================================================
+#  ArchLens — .gitignore
+#  React Native architectural analyzer (Node/TS backend +
+#  Vite/React frontend, monorepo-style)
+# ============================================================
+
+
+# ------------------------------------------------------------
+#  1. Dependencies
+# ------------------------------------------------------------
+# Everything under any node_modules/ folder, anywhere in the repo.
+# These are reinstalled with `npm install` from package-lock.json.
+node_modules/
+jspm_packages/
+bower_components/
+
+# Yarn 2+ Plug'n'Play (only relevant if you ever switch to yarn berry)
+.pnp
+.pnp.js
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+
+# ------------------------------------------------------------
+#  2. Build outputs (regenerated, never source-of-truth)
+# ------------------------------------------------------------
+# Backend — TypeScript compile output (`tsc` → dist/)
+backend/dist/
+backend/build/
+backend/out/
+
+# Frontend — Vite production bundle
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# Generic build folders, just in case
+dist/
+build/
+out/
+
+
+# ------------------------------------------------------------
+#  3. Environment & secrets
+# ------------------------------------------------------------
+# Real env files NEVER go to GitHub. Keep .env.example checked in
+# so contributors know what variables to set up.
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+*.env
+!.env.example
+!*.env.example
+
+# API keys / tokens / credentials accidentally dropped at the root
+secrets.json
+credentials.json
+*.pem
+*.key
+*.cert
+
+
+# ------------------------------------------------------------
+#  4. Runtime artifacts produced by the analyzer itself
+# ------------------------------------------------------------
+# When the backend runs, it unzips uploaded RN projects and writes
+# generated reports. These are user data / output — never committed.
+uploads/
+tmp/
+temp/
+backend/uploads/
+backend/tmp/
+backend/temp/
+
+# Generated CLI/server output files (out.json, *.report.md, etc.)
+out.json
+backend/out.json
+*.report.json
+*.report.md
+report-*.json
+report-*.md
+
+
+# ------------------------------------------------------------
+#  5. Logs
+# ------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm/
+
+
+# ------------------------------------------------------------
+#  6. Caches & incremental build state
+# ------------------------------------------------------------
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+.nuxt/
+.eslintcache
+.stylelintcache
+.tsbuildinfo
+*.tsbuildinfo
+
+
+# ------------------------------------------------------------
+#  7. Test & coverage artifacts
+# ------------------------------------------------------------
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+junit.xml
+
+
+# ------------------------------------------------------------
+#  8. Sample projects — large test fixtures
+# ------------------------------------------------------------
+# We bundle a few RN projects under sample-projects/ to test the
+# analyzer (good-app, bad-app, unusual-layout-app). The .zip
+# archives are huge and can be regenerated from the unzipped
+# folders, so we ignore them but KEEP the source folders.
+sample-projects/**/*.zip
+sample-projects/**/node_modules/
+sample-projects/**/dist/
+sample-projects/**/build/
+sample-projects/**/.expo/
+sample-projects/**/.expo-shared/
+sample-projects/**/android/build/
+sample-projects/**/android/app/build/
+sample-projects/**/android/.gradle/
+sample-projects/**/ios/Pods/
+sample-projects/**/ios/build/
+sample-projects/**/ios/DerivedData/
+
+
+# ------------------------------------------------------------
+#  9. OS / system files
+# ------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+
+# Linux
+*~
+.directory
+.Trash-*
+
+
+# ------------------------------------------------------------
+#  10. Editor / IDE folders
+# ------------------------------------------------------------
+# VS Code — ignore personal settings, allow committed shared ones
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+# JetBrains (WebStorm, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Emacs / Sublime
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+*~
+.#*
+\#*\#
+*.sublime-workspace
+*.sublime-project
+
+
+# ------------------------------------------------------------
+#  11. Misc
+# ------------------------------------------------------------
+# Local debug/scratch files anyone might create while exploring
+scratch/
+playground/
+TODO.local.md
+NOTES.local.md
