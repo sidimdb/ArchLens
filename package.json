@@ -1,0 +1,24 @@
+{
+  "name": "archlens",
+  "version": "0.3.0",
+  "private": true,
+  "description": "ArchLens — React Native architectural & UX audit toolkit. Two modules: archlens-statik (static analyzer) and archlens-runtime (in-app UX audit + AI verify loop).",
+  "workspaces": [
+    "packages/statik-backend",
+    "packages/statik-frontend",
+    "packages/runtime-lib",
+    "packages/runtime-verify",
+    "packages/runtime-demo"
+  ],
+  "scripts": {
+    "statik:backend:dev": "npm run dev -w @archlens/statik-backend",
+    "statik:backend:build": "npm run build -w @archlens/statik-backend",
+    "statik:backend:typecheck": "npm run typecheck -w @archlens/statik-backend",
+    "statik:frontend:dev": "npm run dev -w @archlens/statik-frontend",
+    "statik:frontend:build": "npm run build -w @archlens/statik-frontend",
+    "runtime:lib:typecheck": "npm run typecheck -w @archlens/runtime",
+    "runtime:verify:dev": "npm run dev -w @archlens/verify",
+    "runtime:verify:build": "npm run build -w @archlens/verify",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}

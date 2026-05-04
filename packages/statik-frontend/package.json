@@ -1,8 +1,9 @@
 {
-  "name": "rn-arch-evaluator-frontend",
+  "name": "@archlens/statik-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "ArchLens — static analyzer report UI (Vite + React).",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

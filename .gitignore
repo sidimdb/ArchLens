@@ -26,17 +26,13 @@ bower_components/
 # ------------------------------------------------------------
 #  2. Build outputs (regenerated, never source-of-truth)
 # ------------------------------------------------------------
-# Backend — TypeScript compile output (`tsc` → dist/)
-backend/dist/
-backend/build/
-backend/out/
-
-# Frontend — Vite production bundle
-frontend/dist/
-frontend/build/
-frontend/.vite/
-
-# Generic build folders, just in case
+# Any package's TypeScript compile / Vite bundle output, anywhere in
+# the workspace. We use packages/* in the monorepo and also catch
+# stray top-level dist/ / build/ folders just in case.
+packages/*/dist/
+packages/*/build/
+packages/*/out/
+packages/*/.vite/
 dist/
 build/
 out/
@@ -75,13 +71,13 @@ credentials.json
 uploads/
 tmp/
 temp/
-backend/uploads/
-backend/tmp/
-backend/temp/
+packages/*/uploads/
+packages/*/tmp/
+packages/*/temp/
 
 # Generated CLI/server output files (out.json, *.report.md, etc.)
 out.json
-backend/out.json
+packages/*/out.json
 *.report.json
 *.report.md
 report-*.json

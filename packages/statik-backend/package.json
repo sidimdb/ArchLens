@@ -1,8 +1,8 @@
 {
-  "name": "rn-arch-evaluator-backend",
+  "name": "@archlens/statik-backend",
   "version": "0.2.0",
   "private": true,
-  "description": "Rule-based architectural evaluator for React Native projects.",
+  "description": "ArchLens — static architectural analyzer for React Native projects (backend).",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",

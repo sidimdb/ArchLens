@@ -1,0 +1,24 @@
+{
+  "name": "@archlens/verify",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ArchLens verify — CLI that uses Claude vision to confirm UX fixes by comparing before/after screenshots.",
+  "main": "dist/cli.js",
+  "bin": {
+    "archlens-verify": "dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}
