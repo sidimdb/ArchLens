@@ -1,42 +1,99 @@
 /**
- * Shared session state for the runtime library.
+ * Session state for the runtime library.
  *
- * Phase 1 only models the `isAnnotating` flag and the toggle, since
- * the floating button just flips a boolean. Phase 2 expands this to
- * track captured annotations (screenshot, component, note, ...).
+ * Phase 2 expands this to track captured annotations end-to-end:
+ *   - the bounds + component info from the element identifier,
+ *   - the base64 screenshot from the screen capture,
+ *   - the reviewer's free-form note,
+ *   - the screen / route name from React Navigation (if available),
+ * all keyed by a stable id so the export Markdown can reference them.
  */
 
 import { createContext, useContext } from "react";
 
+/** Bounding box of an element in screen pixel coordinates. */
+export interface ElementBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
- * One captured UX issue. Phase 1 keeps this empty; populated in
- * Phase 2 once we wire up screen capture and component identification.
+ * What we know about the tapped element. fileName / lineNumber come
+ * from React's `_debugSource` fiber metadata in dev builds. They may
+ * be absent if the element is a host primitive (raw <View>) or built
+ * by a library that doesn't preserve source maps — we degrade
+ * gracefully instead of refusing to capture.
  */
+export interface ElementInfo {
+  componentName: string;
+  fileName?: string;
+  lineNumber?: number;
+  bounds: ElementBounds;
+}
+
+/** A single captured UX issue. */
 export interface Annotation {
-  /** Stable id (uuid-ish) so the export Markdown can reference it. */
+  /** Stable id (uuid-ish) used in the exported Markdown. */
   id: string;
-  /** When the annotation was captured (ms since epoch). */
+  /** When captured (ms since epoch). */
   capturedAt: number;
-  /** Free-form note from the reviewer. Phase 2. */
+  /** Free-form note from the reviewer. */
   note: string;
-  /** Screen / route name where the issue was found. Phase 2. */
-  screenName?: string;
-  /** Component name + source location, from React fiber. Phase 2. */
-  componentPath?: string;
-  /** Base64 PNG screenshot. Phase 2. */
-  screenshotBase64?: string;
+  /** Tapped element metadata. */
+  element: ElementInfo;
+  /** Base64-encoded PNG of the full screen at capture time. */
+  screenshotBase64: string;
+  /**
+   * Current screen / route name, read from React Navigation if the
+   * host app is using it. "unknown" otherwise.
+   */
+  screenName: string;
+}
+
+/**
+ * The "in-flight" annotation — captured but the reviewer hasn't yet
+ * filled in the note. Held in transient state while the NoteModal
+ * is open. Becomes a full Annotation when the reviewer hits Save.
+ */
+export interface PendingAnnotation {
+  id: string;
+  capturedAt: number;
+  element: ElementInfo;
+  screenshotBase64: string;
+  screenName: string;
 }
 
 export interface ArchLensContextValue {
   /** True while the reviewer is in tap-to-annotate mode. */
   isAnnotating: boolean;
-  /** Flip annotation mode on/off. */
+  /** Flip annotation mode on/off. Tapping the FAB calls this. */
   toggleAnnotating: () => void;
-  /** All captured annotations in this session. Phase 2 fills this in. */
+
+  /**
+   * Captured but not yet noted. While this is non-null, the
+   * NoteModal is shown.
+   */
+  pending: PendingAnnotation | null;
+  /** Called by AnnotationOverlay after a successful tap+capture. */
+  setPending: (p: PendingAnnotation | null) => void;
+
+  /**
+   * Finalize the pending annotation with a note, persist it, and
+   * clear `pending`. Called by NoteModal's Save button.
+   */
+  saveAnnotation: (note: string) => Promise<void>;
+
+  /** All annotations from the current session. */
   annotations: Annotation[];
+  /** Wipe the session (for example after Export). */
+  clearAnnotations: () => Promise<void>;
 }
 
-export const ArchLensContext = createContext<ArchLensContextValue | null>(null);
+export const ArchLensContext = createContext<ArchLensContextValue | null>(
+  null
+);
 
 /**
  * Read session state and controls from inside any component below
