@@ -83,6 +83,9 @@ packages/*/out.json
 report-*.json
 report-*.md
 
+# Verify CLI test outputs (we keep the input fixtures, ignore generated files)
+packages/*/test-fixtures/**/*-verified.md
+
 
 # ------------------------------------------------------------
 #  5. Logs

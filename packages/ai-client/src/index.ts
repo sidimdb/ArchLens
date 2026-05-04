@@ -111,5 +111,83 @@ export async function callText(options: TextCallOptions): Promise<string> {
   return text.trim();
 }
 
+/* ----------------------------------------------------------------
+ * Vision support — used by @archlens/verify for the before/after
+ * comparison loop.
+ * ---------------------------------------------------------------- */
+
+/** A single content block in a vision call: either text or an image. */
+export type VisionBlock =
+  | { kind: "text"; text: string }
+  | {
+      kind: "image";
+      /** Raw base64, no `data:image/...;base64,` prefix. */
+      base64: string;
+      mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+    };
+
+export interface VisionCallOptions {
+  /** System prompt — defines the model's role. */
+  system: string;
+  /**
+   * Ordered content blocks. Mix text and images freely; the order
+   * matters because the model attends to it. For before/after
+   * comparison: introduce the task in text, then the BEFORE image,
+   * then a label, then the AFTER image, then the question.
+   */
+  blocks: VisionBlock[];
+  /** Cap output. Defaults to 1024. */
+  maxTokens?: number;
+  /** 0 = deterministic. Default 0 — verdicts should be reproducible. */
+  temperature?: number;
+}
+
+/**
+ * One-shot vision completion. Returns the model's text response.
+ *
+ * The Anthropic SDK's image content block expects:
+ *   { type: "image", source: { type: "base64", media_type, data } }
+ */
+export async function callVision(options: VisionCallOptions): Promise<string> {
+  const client = getClient();
+  const model = getModel();
+
+  // The SDK accepts a heterogeneous array of TextBlockParam | ImageBlockParam
+  // | tool blocks — we only emit text + image so we type the array loosely
+  // (matching what messages.create accepts) and let the SDK validate.
+  type AnthropicContent = Array<
+    Anthropic.TextBlockParam | Anthropic.ImageBlockParam
+  >;
+
+  const content: AnthropicContent = options.blocks.map((b) => {
+    if (b.kind === "text") {
+      return { type: "text", text: b.text };
+    }
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: b.mediaType,
+        data: b.base64,
+      },
+    };
+  });
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: options.maxTokens ?? 1024,
+    temperature: options.temperature ?? 0,
+    system: options.system,
+    messages: [{ role: "user", content }],
+  });
+
+  const text = response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+
+  return text.trim();
+}
+
 /** Re-export the SDK's namespace so callers can use its types directly. */
 export type { Anthropic };

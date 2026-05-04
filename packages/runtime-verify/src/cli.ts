@@ -1,21 +1,265 @@
 #!/usr/bin/env node
 /**
- * @archlens/verify — CLI scaffold.
+ * @archlens/verify CLI.
  *
- * Phase 0 placeholder. Phase 4 replaces this with the real verify loop:
- *   1. Parse a Markdown report exported by @archlens/runtime.
- *   2. For each issue, locate matching before/after screenshots.
- *   3. Send (before, after, reviewer note, component path) to Claude vision.
- *   4. Receive verdict: verified / rejected / uncertain.
- *   5. Rewrite the Markdown with verdicts and reasoning.
+ * Reads a Phase-3 ArchLens Markdown report, pairs each issue's
+ * before-screenshot with a developer-supplied after-screenshot,
+ * sends the pair plus the reviewer's note to Claude vision, and
+ * rewrites the Markdown with verdicts + a summary.
  *
- * Usage (planned):
- *   npx archlens-verify --report ux-audit.md --after ./screenshots-after/
+ * Usage:
+ *   archlens-verify --report <ux-audit.md>
+ *                   --after  <directory of after PNGs>
+ *                   [--out   <output path>]
+ *                   [--dry-run]
+ *
+ * After-screenshot naming convention:
+ *   <after-dir>/issue-1.png, issue-2.png, ...
+ *
+ * --dry-run skips the API call and produces alternating
+ * verified/uncertain verdicts. Use it before you have an Anthropic
+ * API key, or to test the rewrite without burning tokens.
  */
 
-function main(): void {
-  // eslint-disable-next-line no-console
-  console.log("archlens-verify scaffold — implementation begins in Phase 4.");
+import "dotenv/config";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+import { DEFAULT_MODEL, getModel } from "@archlens/ai-client";
+import { parseReport } from "./parse";
+import type { RawVerdict } from "./verify";
+import { verifyIssue } from "./verify";
+import { buildVerifiedMarkdown } from "./update";
+import type { ReportIssue, VerifiedIssue } from "./types";
+
+interface Args {
+  reportPath: string;
+  afterDir: string;
+  outPath: string | null;
+  dryRun: boolean;
+  verbose: boolean;
 }
 
-main();
+function parseArgs(argv: string[]): Args {
+  const out: Partial<Args> = { dryRun: false, verbose: false, outPath: null };
+
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--report") out.reportPath = argv[++i];
+    else if (a === "--after") out.afterDir = argv[++i];
+    else if (a === "--out") out.outPath = argv[++i] ?? null;
+    else if (a === "--dry-run") out.dryRun = true;
+    else if (a === "--verbose" || a === "-v") out.verbose = true;
+    else if (a === "--help" || a === "-h") {
+      printHelpAndExit(0);
+    } else {
+      console.error("Unknown argument: " + a);
+      printHelpAndExit(2);
+    }
+  }
+
+  if (!out.reportPath || !out.afterDir) {
+    console.error("Missing --report and/or --after arguments.");
+    printHelpAndExit(2);
+  }
+
+  return out as Args;
+}
+
+function printHelpAndExit(code: number): never {
+  const msg = [
+    "Usage: archlens-verify --report <md-file> --after <dir> [--out <path>] [--dry-run]",
+    "",
+    "Arguments:",
+    "  --report <path>   Phase-3 Markdown report (`ux-audit-*.md`).",
+    "  --after  <dir>    Folder of after-screenshots named `issue-N.png`.",
+    "  --out    <path>   Output path (default: <report>-verified.md).",
+    "  --dry-run         Skip API calls — produce canned verdicts.",
+    "  --verbose, -v     Print the model's raw response per issue.",
+    "  --help, -h        Show this help.",
+    "",
+    "Environment:",
+    "  ANTHROPIC_API_KEY  required unless --dry-run",
+    "  CLAUDE_MODEL       optional override (default: " + DEFAULT_MODEL + ")",
+  ].join("\n");
+  console.log(msg);
+  process.exit(code);
+}
+
+/**
+ * Locate the after-screenshot for a given issue. Tries common
+ * naming patterns so the developer doesn't have to be too precise:
+ *   - issue-N.png        ← preferred
+ *   - issue-N.jpg
+ *   - issue_N.png
+ *   - <issue-id>.png
+ */
+function findAfterScreenshot(
+  afterDir: string,
+  issue: ReportIssue
+): string | null {
+  const candidates = [
+    "issue-" + issue.index + ".png",
+    "issue-" + issue.index + ".jpg",
+    "issue-" + issue.index + ".jpeg",
+    "issue_" + issue.index + ".png",
+    issue.id + ".png",
+  ];
+
+  for (const name of candidates) {
+    const full = path.join(afterDir, name);
+    if (fs.existsSync(full)) return full;
+  }
+  return null;
+}
+
+function readAsBase64(filePath: string): string {
+  return fs.readFileSync(filePath).toString("base64");
+}
+
+/** Canned verdict generator for --dry-run. Cycles through verdicts. */
+function dryRunVerdict(index: number): RawVerdict {
+  const cycle = [
+    {
+      verdict: "verified" as const,
+      reasoning:
+        "[DRY RUN] Synthetic verdict — the AFTER image appears to address the reviewer's note.",
+    },
+    {
+      verdict: "uncertain" as const,
+      reasoning:
+        "[DRY RUN] Synthetic verdict — the change is partial or hard to evaluate without context.",
+    },
+    {
+      verdict: "rejected" as const,
+      reasoning:
+        "[DRY RUN] Synthetic verdict — the AFTER image does not seem to resolve the original concern.",
+    },
+  ];
+  return cycle[(index - 1) % cycle.length]!;
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+
+  // Resolve paths relative to cwd so users can run from anywhere.
+  const reportPath = path.resolve(args.reportPath);
+  const afterDir = path.resolve(args.afterDir);
+  const outPath =
+    args.outPath ?? deriveOutPath(reportPath);
+
+  if (!fs.existsSync(reportPath)) {
+    fail("Report not found: " + reportPath);
+  }
+  if (!fs.existsSync(afterDir) || !fs.statSync(afterDir).isDirectory()) {
+    fail("After-screenshots directory not found: " + afterDir);
+  }
+
+  const report = parseReport(reportPath);
+  if (report.issues.length === 0) {
+    console.log("Report has zero annotations — nothing to verify.");
+    fs.writeFileSync(outPath, report.rawMarkdown);
+    process.exit(0);
+  }
+
+  const modelName = args.dryRun ? "[dry-run]" : getModel();
+
+  console.log("ArchLens verify");
+  console.log("  Report:  " + reportPath);
+  console.log("  After:   " + afterDir);
+  console.log("  Model:   " + modelName);
+  console.log("  Issues:  " + report.issues.length);
+  console.log("");
+
+  const verified: VerifiedIssue[] = [];
+  let n = 0;
+  for (const issue of report.issues) {
+    n++;
+    process.stdout.write(
+      "[" + n + "/" + report.issues.length + "] Issue #" + issue.index + " "
+    );
+
+    const afterPath = findAfterScreenshot(afterDir, issue);
+    if (!afterPath) {
+      console.log("→ no after screenshot, skipping API call");
+      verified.push({
+        ...issue,
+        verdict: "no-after",
+        reasoning:
+          "No after-screenshot file found in " +
+          afterDir +
+          " for this issue (looked for issue-" +
+          issue.index +
+          ".png and similar).",
+        verifiedAt: new Date().toISOString(),
+      });
+      continue;
+    }
+
+    try {
+      const result = args.dryRun
+        ? dryRunVerdict(issue.index)
+        : await verifyIssue(issue, readAsBase64(afterPath));
+
+      console.log("→ " + result.verdict);
+      if (args.verbose) {
+        console.log("    reasoning: " + result.reasoning);
+      }
+      verified.push({
+        ...issue,
+        verdict: result.verdict,
+        reasoning: result.reasoning,
+        verifiedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log("→ uncertain (error)");
+      verified.push({
+        ...issue,
+        verdict: "uncertain",
+        reasoning: "Verification failed: " + msg,
+        verifiedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  const updated = buildVerifiedMarkdown(report, verified, modelName);
+  fs.writeFileSync(outPath, updated);
+
+  console.log("");
+  console.log("Wrote: " + outPath);
+  console.log("");
+  printSummary(verified);
+
+  // Exit code reflects worst verdict so this can be wired into CI.
+  const hasRejected = verified.some((v) => v.verdict === "rejected");
+  process.exit(hasRejected ? 1 : 0);
+}
+
+function printSummary(verified: VerifiedIssue[]): void {
+  const counts = { verified: 0, rejected: 0, uncertain: 0, "no-after": 0 };
+  for (const v of verified) counts[v.verdict] += 1;
+
+  console.log("Summary:");
+  console.log("  ✅ verified:   " + counts.verified);
+  console.log("  ❌ rejected:   " + counts.rejected);
+  console.log("  ⚠️  uncertain:  " + counts.uncertain);
+  console.log("  ➖ no-after:   " + counts["no-after"]);
+}
+
+function deriveOutPath(reportPath: string): string {
+  const dir = path.dirname(reportPath);
+  const base = path.basename(reportPath, path.extname(reportPath));
+  return path.join(dir, base + "-verified.md");
+}
+
+function fail(message: string): never {
+  console.error("Error: " + message);
+  process.exit(2);
+}
+
+void main().catch((err) => {
+  console.error("Unexpected error:");
+  console.error(err);
+  process.exit(2);
+});
