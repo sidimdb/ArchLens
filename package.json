@@ -4,6 +4,7 @@
   "private": true,
   "description": "ArchLens — React Native architectural & UX audit toolkit. Two modules: archlens-statik (static analyzer) and archlens-runtime (in-app UX audit + AI verify loop).",
   "workspaces": [
+    "packages/ai-client",
     "packages/statik-backend",
     "packages/statik-frontend",
     "packages/runtime-lib",
