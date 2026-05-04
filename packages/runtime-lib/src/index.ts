@@ -1,21 +1,28 @@
 /**
- * @archlens/runtime — ArchLens runtime UX audit library.
+ * @archlens/runtime — public API.
  *
- * Phase 0 scaffold. Real implementation begins in Phase 1.
+ * Phase 1 surface:
+ *   - <ArchLensProvider>     wraps the host app, mounts the floating
+ *                            annotation button in dev mode.
+ *   - useArchLens()          read session state from any descendant.
+ *   - Annotation             type for captured UX issues (filled in P2).
  *
- * Public API surface (planned):
- *   - <ArchLensProvider>          wraps the host app, mounts the floating
- *                                 annotation button in dev mode.
- *   - useArchLens()               returns session state + control functions.
- *   - exportSession()             serializes captured annotations as Markdown.
+ * Phase 2 will add:
+ *   - The tap-to-annotate overlay
+ *   - Screenshot capture, route detection, component-source resolution
+ *   - Note input modal
+ *
+ * Phase 3 will add:
+ *   - exportSession()  → Markdown report ready for @archlens/verify.
  */
+
+export { ArchLensProvider } from "./components/ArchLensProvider";
+export type { ArchLensProviderProps } from "./components/ArchLensProvider";
+
+export { useArchLens } from "./state/context";
+export type {
+  ArchLensContextValue,
+  Annotation,
+} from "./state/context";
 
 export const VERSION = "0.0.1";
-
-/**
- * Placeholder so TypeScript treats this file as a module. Phase 1 replaces
- * this with the real <ArchLensProvider> component and supporting exports.
- */
-export function __archlensRuntimePlaceholder(): string {
-  return "archlens-runtime scaffold ready";
-}
