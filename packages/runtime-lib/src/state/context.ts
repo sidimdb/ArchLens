@@ -89,6 +89,14 @@ export interface ArchLensContextValue {
   annotations: Annotation[];
   /** Wipe the session (for example after Export). */
   clearAnnotations: () => Promise<void>;
+
+  /**
+   * Build the Markdown + JSON report and open the system share
+   * sheet. The promise resolves once the sheet closes (or once we
+   * fall back to RN's text-only Share). Throws on hard I/O errors —
+   * caller should surface them to the reviewer.
+   */
+  exportSession: () => Promise<void>;
 }
 
 export const ArchLensContext = createContext<ArchLensContextValue | null>(

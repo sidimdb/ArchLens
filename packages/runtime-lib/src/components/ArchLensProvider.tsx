@@ -41,25 +41,34 @@ import {
   saveAnnotations,
   clearStoredAnnotations,
 } from "../state/persistence";
+import { exportAndShareSession } from "../export/share";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 import { FloatingButton } from "./FloatingButton";
 import { NoteModal } from "./NoteModal";
+import { SessionMenu } from "./SessionMenu";
 
 export interface ArchLensProviderProps {
   children: ReactNode;
+  /**
+   * Friendly project name shown in the exported report header.
+   * Defaults to "Untitled project" if omitted.
+   */
+  projectName?: string;
 }
 
 export function ArchLensProvider({
   children,
+  projectName,
 }: ArchLensProviderProps): React.ReactElement {
   if (!__DEV__) {
     return <>{children}</>;
   }
-  return <DevProvider>{children}</DevProvider>;
+  return <DevProvider projectName={projectName}>{children}</DevProvider>;
 }
 
 function DevProvider({
   children,
+  projectName,
 }: ArchLensProviderProps): React.ReactElement {
   const rootRef = useRef<View | null>(null);
 
@@ -112,6 +121,12 @@ function DevProvider({
     await clearStoredAnnotations();
   }, []);
 
+  const exportSession = useCallback(async (): Promise<void> => {
+    await exportAndShareSession(annotations, {
+      projectName: projectName ?? "Untitled project",
+    });
+  }, [annotations, projectName]);
+
   const value = useMemo<ArchLensContextValue>(
     () => ({
       isAnnotating,
@@ -121,6 +136,7 @@ function DevProvider({
       saveAnnotation,
       annotations,
       clearAnnotations,
+      exportSession,
     }),
     [
       isAnnotating,
@@ -129,6 +145,7 @@ function DevProvider({
       saveAnnotation,
       annotations,
       clearAnnotations,
+      exportSession,
     ]
   );
 
@@ -137,6 +154,7 @@ function DevProvider({
       <View style={styles.root} collapsable={false} ref={rootRef}>
         {children}
         <AnnotationOverlay rootRef={rootRef} />
+        <SessionMenu />
         <FloatingButton />
       </View>
       <NoteModal />

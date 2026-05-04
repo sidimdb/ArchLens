@@ -36,7 +36,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App(): React.ReactElement {
   return (
     <SafeAreaProvider>
-      <ArchLensProvider>
+      <ArchLensProvider projectName="FitTrack (ArchLens demo)">
         <NavigationContainer>
           <Stack.Navigator initialRouteName="Home">
             <Stack.Screen name="Home" component={HomeScreen} />

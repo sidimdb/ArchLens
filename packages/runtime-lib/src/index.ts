@@ -1,17 +1,17 @@
 /**
  * @archlens/runtime — public API.
  *
- * Phase 2 surface:
+ * Phase 3 surface:
  *   - <ArchLensProvider>      wraps the host app, mounts the FAB,
- *                             overlay, and note modal in dev mode.
+ *                             overlay, session menu, and note modal.
  *   - useArchLens()           read session state from any descendant.
- *   - setNavigationRef(ref)   optional opt-in for screen-name capture
- *                             (host apps that use react-navigation).
- *   - Annotation              type for captured UX issues.
- *   - ElementInfo             type returned by the identifier.
+ *   - setNavigationRef(ref)   optional opt-in for screen-name capture.
+ *   - buildMarkdownReport()   pure function: annotations → Markdown.
+ *                             Useful from non-RN code (verify CLI).
+ *   - exportAndShareSession() write Markdown + JSON, open share sheet.
  *
- * Phase 3 will add:
- *   - exportSession()         → Markdown report ready for @archlens/verify.
+ * Phase 4 will use buildMarkdownReport from the verify CLI to parse
+ * existing reports and re-emit them with verification verdicts.
  */
 
 export { ArchLensProvider } from "./components/ArchLensProvider";
@@ -28,4 +28,13 @@ export type {
 
 export { setNavigationRef } from "./integrations/navigation";
 
-export const VERSION = "0.0.2";
+export {
+  buildMarkdownReport,
+  type MarkdownExportOptions,
+} from "./export/markdown";
+export {
+  exportAndShareSession,
+  type ExportResult,
+} from "./export/share";
+
+export const VERSION = "0.0.3";
