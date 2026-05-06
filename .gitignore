@@ -83,8 +83,14 @@ packages/*/out.json
 report-*.json
 report-*.md
 
-# Verify CLI test outputs (we keep the input fixtures, ignore generated files)
+# Verify CLI test outputs in package test-fixtures (regeneratable)
 packages/*/test-fixtures/**/*-verified.md
+packages/*/test-fixtures/**/combined.md
+
+# NOTE: demo/ux-audit-demo-verified.md and demo/combined-demo.md are
+# intentionally NOT ignored — they are curated artifacts so anyone
+# cloning the repo can see what ArchLens output looks like without
+# running the pipeline. SCRIPT.md walks through them.
 
 
 # ------------------------------------------------------------

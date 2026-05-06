@@ -1,0 +1,122 @@
+{
+  "project": {
+    "name": "FitTrack (ArchLens demo)",
+    "fileCount": 42,
+    "totalLoc": 3187,
+    "layerBreakdown": {
+      "screen": 5,
+      "component": 12,
+      "hook": 3,
+      "service": 4,
+      "util": 6,
+      "config": 2,
+      "navigation": 1,
+      "unknown": 9
+    }
+  },
+  "overallScore": 78.4,
+  "grade": "B",
+  "rules": [
+    {
+      "ruleId": "RULE_1_SERVICE_LAYER",
+      "name": "Service layer usage",
+      "description": "All network calls must originate from service files.",
+      "status": "fail",
+      "confidence": "high",
+      "violationCount": 3,
+      "affectedFiles": ["src/screens/HomeScreen.tsx"],
+      "explanation": "Move `fetch()` calls into a dedicated service module so screens stay declarative.",
+      "weight": 20,
+      "score": 71
+    },
+    {
+      "ruleId": "RULE_2_CIRCULAR_DEPS",
+      "name": "No circular dependencies",
+      "description": "Modules must not import each other in a cycle.",
+      "status": "pass",
+      "confidence": "high",
+      "violationCount": 0,
+      "affectedFiles": [],
+      "explanation": "No circular dependencies detected.",
+      "weight": 15,
+      "score": 100
+    },
+    {
+      "ruleId": "RULE_3_FILE_SIZE",
+      "name": "File size & complexity thresholds",
+      "description": "Components ≤200 LOC, screens ≤300 LOC, ≤5 exports per file.",
+      "status": "fail",
+      "confidence": "high",
+      "violationCount": 2,
+      "affectedFiles": ["src/screens/SettingsScreen.tsx"],
+      "explanation": "SettingsScreen has 348 LOC — split it into smaller subcomponents.",
+      "weight": 10,
+      "score": 80
+    },
+    {
+      "ruleId": "RULE_4_LAYER_SEPARATION",
+      "name": "Layer separation (import policy)",
+      "description": "Imports must respect the screen → component → service flow.",
+      "status": "pass",
+      "confidence": "high",
+      "violationCount": 0,
+      "affectedFiles": [],
+      "explanation": "All cross-layer imports are within policy.",
+      "weight": 20,
+      "score": 100
+    },
+    {
+      "ruleId": "RULE_5_RULES_OF_HOOKS",
+      "name": "Rules of Hooks compliance",
+      "description": "Hooks must be called at the top level only.",
+      "status": "pass",
+      "confidence": "high",
+      "violationCount": 0,
+      "affectedFiles": [],
+      "explanation": "All hook calls comply with the Rules of Hooks.",
+      "weight": 15,
+      "score": 100
+    },
+    {
+      "ruleId": "RULE_6_INLINE_STYLES",
+      "name": "Inline styles vs StyleSheet",
+      "description": "Avoid inline style object literals in JSX.",
+      "status": "fail",
+      "confidence": "high",
+      "violationCount": 7,
+      "affectedFiles": ["src/screens/HomeScreen.tsx", "src/components/Card.tsx"],
+      "explanation": "Move inline style objects into StyleSheet.create() blocks.",
+      "weight": 5,
+      "score": 60
+    },
+    {
+      "ruleId": "RULE_7_NAMING",
+      "name": "Naming conventions",
+      "description": "Components PascalCase, hooks useXxx, services camelCase.",
+      "status": "pass",
+      "confidence": "high",
+      "violationCount": 0,
+      "affectedFiles": [],
+      "explanation": "All filenames and default exports follow the convention.",
+      "weight": 5,
+      "score": 100
+    },
+    {
+      "ruleId": "RULE_8_NATIVE_API_IN_UI",
+      "name": "Native APIs in UI",
+      "description": "Screens and components must not call AsyncStorage, Platform directly.",
+      "status": "fail",
+      "confidence": "high",
+      "violationCount": 1,
+      "affectedFiles": ["src/screens/ProfileScreen.tsx"],
+      "explanation": "Wrap AsyncStorage in a hook (e.g. useStoredValue) so the UI stays declarative.",
+      "weight": 10,
+      "score": 90
+    }
+  ],
+  "summary": {
+    "strongest": ["No circular dependencies", "Layer separation"],
+    "weakest": ["Inline styles vs StyleSheet", "Service layer usage"]
+  },
+  "generatedAt": "2026-05-04T15:30:00.000Z"
+}
