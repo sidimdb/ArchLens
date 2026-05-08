@@ -131,6 +131,11 @@ export default function ViolationDetailPanel({ rule, violation, onClose }) {
   );
 }
 
+// TODO(jury-prep): replace this hand-written switch with a lazy
+// AI-generated suggestion. idea.md §4.4 promises AI generates
+// improvement suggestions per violation; today we only deliver
+// rule-level explanations. See /TODO.md "Per-violation AI
+// suggestions" for the full plan and estimated effort.
 function defaultSuggestion(ruleId, v) {
   switch (ruleId) {
     case 'RULE_2_CIRCULAR_DEPS':

@@ -34,6 +34,7 @@ import {
   ArchLensContext,
   type Annotation,
   type ArchLensContextValue,
+  type ElementBounds,
   type PendingAnnotation,
 } from "../state/context";
 import {
@@ -70,7 +71,12 @@ function DevProvider({
   children,
   projectName,
 }: ArchLensProviderProps): React.ReactElement {
-  const rootRef = useRef<View | null>(null);
+  // appRef: wraps ONLY the host app's children. The annotation
+  // overlay, session menu, and FAB are mounted as siblings of the
+  // ref'd view (not children) so they don't end up in the screenshot
+  // and don't confuse the inspector — when we ask "what's at (x, y)"
+  // we want the underlying app component, not our overlay.
+  const appRef = useRef<View | null>(null);
 
   const [isAnnotating, setIsAnnotating] = useState<boolean>(false);
   const [pending, setPending] = useState<PendingAnnotation | null>(null);
@@ -93,16 +99,21 @@ function DevProvider({
   }, []);
 
   const saveAnnotation = useCallback(
-    async (note: string): Promise<void> => {
+    async (note: string, boundsOverride?: ElementBounds): Promise<void> => {
       if (!pending) return;
+
+      const element = boundsOverride
+        ? { ...pending.element, bounds: boundsOverride }
+        : pending.element;
 
       const annotation: Annotation = {
         id: pending.id,
         capturedAt: pending.capturedAt,
         note,
-        element: pending.element,
+        element,
         screenshotBase64: pending.screenshotBase64,
         screenName: pending.screenName,
+        screenDimensions: pending.screenDimensions,
       };
 
       setAnnotations((prev) => {
@@ -151,9 +162,16 @@ function DevProvider({
 
   return (
     <ArchLensContext.Provider value={value}>
-      <View style={styles.root} collapsable={false} ref={rootRef}>
-        {children}
-        <AnnotationOverlay rootRef={rootRef} />
+      <View style={styles.outer} collapsable={false}>
+        {/*
+          appRef wraps just the host children. We use it for both
+          screenshot capture AND element identification, so neither
+          step picks up our overlay/FAB.
+        */}
+        <View style={styles.app} collapsable={false} ref={appRef}>
+          {children}
+        </View>
+        <AnnotationOverlay rootRef={appRef} />
         <SessionMenu />
         <FloatingButton />
       </View>
@@ -163,5 +181,6 @@ function DevProvider({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  outer: { flex: 1 },
+  app: { flex: 1 },
 });

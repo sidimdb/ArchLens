@@ -33,6 +33,18 @@ export interface ElementInfo {
   bounds: ElementBounds;
 }
 
+/**
+ * Logical screen dimensions captured at the moment of annotation.
+ * We need these to render the bounding box overlay at the correct
+ * scale in the modal preview — different phones have different
+ * widths (360, 390, 414…), so a hardcoded assumption misaligns the
+ * box on most devices.
+ */
+export interface ScreenDimensions {
+  width: number;
+  height: number;
+}
+
 /** A single captured UX issue. */
 export interface Annotation {
   /** Stable id (uuid-ish) used in the exported Markdown. */
@@ -50,6 +62,8 @@ export interface Annotation {
    * host app is using it. "unknown" otherwise.
    */
   screenName: string;
+  /** Logical phone dimensions at capture time. */
+  screenDimensions: ScreenDimensions;
 }
 
 /**
@@ -63,6 +77,7 @@ export interface PendingAnnotation {
   element: ElementInfo;
   screenshotBase64: string;
   screenName: string;
+  screenDimensions: ScreenDimensions;
 }
 
 export interface ArchLensContextValue {
@@ -82,8 +97,15 @@ export interface ArchLensContextValue {
   /**
    * Finalize the pending annotation with a note, persist it, and
    * clear `pending`. Called by NoteModal's Save button.
+   *
+   * `boundsOverride` lets the reviewer adjust the auto-detected
+   * element box (drag-to-move, drag-corner-to-resize) before saving.
+   * If omitted, the original auto-detected bounds are kept.
    */
-  saveAnnotation: (note: string) => Promise<void>;
+  saveAnnotation: (
+    note: string,
+    boundsOverride?: ElementBounds
+  ) => Promise<void>;
 
   /** All annotations from the current session. */
   annotations: Annotation[];

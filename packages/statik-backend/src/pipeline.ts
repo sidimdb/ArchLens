@@ -28,10 +28,23 @@ import { RULES } from "./rules";
 import { computeOverallScore, grade, summarize } from "./scoring/scorer";
 import { toMarkdown } from "./reporting/markdown-reporter";
 import { EvaluatorConfig, Project, Report } from "./types";
+import { enrichRulesWithAi } from "./ai/enrichRulesWithAi";
 
 export interface AnalysisOutput {
   report: Report;
   markdown: string;
+}
+
+export interface RunAnalysisOptions {
+  /**
+   * If true, after running the rules we ask Claude (via the shared
+   * ai-client) for a plain-language, project-aware explanation of
+   * each FAILED rule. Adds a few seconds and ~$0.01 per run.
+   * Requires ANTHROPIC_API_KEY in the environment.
+   *
+   * Defaults to false so the analyzer stays fully offline-capable.
+   */
+  ai?: boolean;
 }
 
 function loadUserConfig(rootPath: string): EvaluatorConfig | undefined {
@@ -50,7 +63,10 @@ function loadUserConfig(rootPath: string): EvaluatorConfig | undefined {
   return undefined;
 }
 
-export async function runAnalysis(source: PreparedSource): Promise<AnalysisOutput> {
+export async function runAnalysis(
+  source: PreparedSource,
+  options: RunAnalysisOptions = {}
+): Promise<AnalysisOutput> {
   try {
     const scan = await scanProject(source.rootPath);
 
@@ -96,6 +112,14 @@ export async function runAnalysis(source: PreparedSource): Promise<AnalysisOutpu
       summary: summarize(ruleResults),
       generatedAt: new Date().toISOString(),
     };
+
+    // Optional AI enrichment. Mutates the rule results in place to
+    // attach `aiExplanation` to each failed rule. Failures inside
+    // the enricher are swallowed per-rule, so a network blip never
+    // blocks the report.
+    if (options.ai) {
+      await enrichRulesWithAi(report, { projectName: project.rootName });
+    }
 
     return { report, markdown: toMarkdown(report) };
   } finally {

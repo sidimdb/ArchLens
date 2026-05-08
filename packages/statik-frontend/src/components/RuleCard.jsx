@@ -69,6 +69,24 @@ export default function RuleCard({ rule, onViolationClick }) {
             </p>
           )}
 
+          {rule.aiExplanation && (
+            <div className="mb-2 p-2.5 bg-surface-container-low border-l-2 border-primary-fixed-dim/60 rounded-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Icon
+                  name="auto_awesome"
+                  className="text-primary-fixed-dim text-[14px]"
+                  filled
+                />
+                <span className="text-mono-label uppercase tracking-widest text-primary-fixed-dim font-bold">
+                  AI explanation
+                </span>
+              </div>
+              <p className="text-body-sm text-on-surface-variant leading-snug italic">
+                {rule.aiExplanation}
+              </p>
+            </div>
+          )}
+
           {rule.violations.length > 0 && (
             <>
               <div className="flex justify-between items-center text-mono-label text-on-surface-variant py-1 border-b border-outline-variant/10 mb-1">

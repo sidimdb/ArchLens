@@ -12,7 +12,13 @@ const RULES = [
   { n: '08', title: 'Native APIs in UI', desc: 'Screens and components must not call AsyncStorage, Platform, NativeModules, Linking, etc. directly — wrap them in a hook or service.' },
 ];
 
-export default function UploadPage({ onUpload, onGithub, error }) {
+export default function UploadPage({
+  onUpload,
+  onGithub,
+  error,
+  useAi = true,
+  onUseAiChange,
+}) {
   const inputRef = useRef();
   const [tab, setTab] = useState('zip'); // 'zip' | 'public' | 'private'
   const [dragOver, setDragOver] = useState(false);
@@ -206,6 +212,42 @@ export default function UploadPage({ onUpload, onGithub, error }) {
                 {error}
               </div>
             )}
+
+            {/* AI explanations toggle — applies to all 3 tabs */}
+            <div className="mt-3 pt-3 border-t border-outline-variant flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <Icon
+                    name="auto_awesome"
+                    className="text-on-surface-variant text-[14px]"
+                    filled
+                  />
+                  <span className="text-mono-label uppercase tracking-widest text-on-surface-variant font-bold">
+                    AI explanations
+                  </span>
+                </div>
+                <p className="text-mono-label text-outline mt-0.5">
+                  Claude rewrites failed-rule explanations using your project's actual files (~$0.01/run).
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={useAi}
+                onClick={() => onUseAiChange?.(!useAi)}
+                className={
+                  'relative inline-flex items-center w-11 h-6 rounded-full transition-colors flex-shrink-0 ' +
+                  (useAi ? 'bg-on-surface' : 'bg-surface-container-high border border-outline-variant')
+                }
+              >
+                <span
+                  className={
+                    'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-surface shadow-sm transition-transform duration-200 ease-out ' +
+                    (useAi ? 'translate-x-5' : 'translate-x-0')
+                  }
+                />
+              </button>
+            </div>
           </div>
           </div>
         </section>

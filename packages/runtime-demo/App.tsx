@@ -12,10 +12,13 @@
 
 import React from "react";
 import { StatusBar } from "expo-status-bar";
-import { NavigationContainer } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ArchLensProvider } from "@archlens/runtime";
+import { ArchLensProvider, setNavigationRef } from "@archlens/runtime";
 
 import { HomeScreen } from "./src/screens/HomeScreen";
 import { ProfileScreen } from "./src/screens/ProfileScreen";
@@ -33,11 +36,17 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Shared navigation ref so @archlens/runtime can read the current
+// screen name when capturing an annotation. Without this, every
+// captured annotation would be labeled "Screen: unknown".
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+setNavigationRef(navigationRef);
+
 export default function App(): React.ReactElement {
   return (
     <SafeAreaProvider>
       <ArchLensProvider projectName="FitTrack (ArchLens demo)">
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Stack.Navigator initialRouteName="Home">
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />

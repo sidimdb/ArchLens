@@ -21,6 +21,7 @@
 import React, { useState, type RefObject } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
   Pressable,
   StyleSheet,
   Text,
@@ -75,12 +76,14 @@ export function AnnotationOverlay({
         return;
       }
 
+      const window = Dimensions.get("window");
       const pending: PendingAnnotation = {
         id: makeId(),
         capturedAt: Date.now(),
         element,
         screenshotBase64,
         screenName: getCurrentScreenName(),
+        screenDimensions: { width: window.width, height: window.height },
       };
 
       setPending(pending);
@@ -93,7 +96,7 @@ export function AnnotationOverlay({
   };
 
   return (
-    <View style={styles.root} pointerEvents="box-only">
+    <View style={styles.root}>
       <Pressable
         accessibilityLabel="Tap any element to annotate"
         style={styles.tapTarget}

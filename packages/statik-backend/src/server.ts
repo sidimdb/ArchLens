@@ -12,11 +12,22 @@
 
 import cors from "cors";
 import "dotenv/config";
+import * as path from "path";
 import express, { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { fromGitHub } from "./input/github-source";
 import { fromZipBuffer } from "./input/local-source";
 import { runAnalysis } from "./pipeline";
+
+// Also load .env from the workspace root — the backend's own folder
+// usually doesn't have one in the monorepo layout.
+require("dotenv").config({ path: path.resolve(__dirname, "../../../.env") });
+
+/** Truthy check on form / query / body fields like ?ai=1, "true", "yes". */
+function flag(v: unknown): boolean {
+  if (typeof v !== "string") return Boolean(v);
+  return /^(1|true|yes|on)$/i.test(v.trim());
+}
 
 const app = express();
 app.use(cors());
@@ -50,7 +61,8 @@ app.post(
         req.file.buffer,
         req.file.originalname.replace(/\.zip$/i, "")
       );
-      const result = await runAnalysis(source);
+      const ai = flag(req.body?.ai) || flag(req.query?.ai);
+      const result = await runAnalysis(source, { ai });
       res.json(result);
     } catch (err) {
       next(err);
@@ -65,7 +77,8 @@ app.post("/analyze-github", async (req: Request, res: Response, next: NextFuncti
       return res.status(400).json({ error: "Missing 'url' field." });
     }
     const source = await fromGitHub(url, { token });
-    const result = await runAnalysis(source);
+    const ai = flag(req.body?.ai) || flag(req.query?.ai);
+    const result = await runAnalysis(source, { ai });
     res.json(result);
   } catch (err) {
     next(err);

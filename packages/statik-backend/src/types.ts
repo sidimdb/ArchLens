@@ -185,6 +185,13 @@ export interface RuleResult {
   explanation: string;
   weight: number;
   score: number;
+  /**
+   * Optional Claude-generated, project-aware explanation. Populated
+   * when AI enrichment is requested (`--ai` flag). Frontend renders
+   * it in addition to the deterministic `explanation` so the report
+   * still works fully offline if AI is skipped.
+   */
+  aiExplanation?: string;
 }
 
 export interface ReportSummary {

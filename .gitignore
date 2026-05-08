@@ -90,7 +90,22 @@ packages/*/test-fixtures/**/combined.md
 # NOTE: demo/ux-audit-demo-verified.md and demo/combined-demo.md are
 # intentionally NOT ignored — they are curated artifacts so anyone
 # cloning the repo can see what ArchLens output looks like without
-# running the pipeline. SCRIPT.md walks through them.
+# running the pipeline.
+
+# Real-API test outputs (contain the developer's actual Claude
+# verdicts from a paid run; regeneratable and not for the public repo).
+demo/*-real-verified.md
+demo/*-real.md
+
+
+# ------------------------------------------------------------
+#  Internal notes — kept local, never pushed
+# ------------------------------------------------------------
+# Internal planning + private demo-day rehearsal notes. The
+# committed README.md files (root + per-package) are still tracked.
+TODO.md
+demo/SCRIPT.md
+demo/README.md
 
 
 # ------------------------------------------------------------
@@ -144,6 +159,8 @@ sample-projects/**/dist/
 sample-projects/**/build/
 sample-projects/**/.expo/
 sample-projects/**/.expo-shared/
+**/.expo/
+**/.expo-shared/
 sample-projects/**/android/build/
 sample-projects/**/android/app/build/
 sample-projects/**/android/.gradle/

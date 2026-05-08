@@ -10,6 +10,10 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [pendingName, setPendingName] = useState(null);
+  // AI explanations are opt-in (each enabled run costs ~$0.01 of
+  // Claude API credit). Default ON because the demo expects them;
+  // user can flip the toggle on the upload page.
+  const [useAi, setUseAi] = useState(true);
 
   async function handleUpload(file) {
     setView('analyzing');
@@ -20,7 +24,8 @@ export default function App() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch('/analyze', { method: 'POST', body: fd });
+      const url = useAi ? '/analyze?ai=1' : '/analyze';
+      const res = await fetch(url, { method: 'POST', body: fd });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `Request failed (${res.status})`);
@@ -43,7 +48,8 @@ export default function App() {
     const m = url.match(/([^/]+?)(?:\.git)?\/?$/);
     setPendingName(m ? m[1] : url);
     try {
-      const res = await fetch('/analyze-github', {
+      const endpoint = useAi ? '/analyze-github?ai=1' : '/analyze-github';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, token: token || null }),
@@ -82,6 +88,8 @@ export default function App() {
           onUpload={handleUpload}
           onGithub={handleGithub}
           error={error}
+          useAi={useAi}
+          onUseAiChange={setUseAi}
         />
       )}
       {view === 'analyzing' && (

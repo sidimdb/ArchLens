@@ -35,7 +35,6 @@
  */
 
 import type { RefObject } from "react";
-import { findNodeHandle } from "react-native";
 import type { View } from "react-native";
 import type { ElementBounds, ElementInfo } from "../state/context";
 
@@ -66,8 +65,14 @@ interface InspectorResult {
   frame?: { left: number; top: number; width: number; height: number };
 }
 
+/**
+ * Signature in RN 0.79+ takes a HostInstance (or null to start from
+ * the root). In RN ≤0.78 it took a numeric tag. We pass `null` /
+ * `undefined` which works in both: legacy versions ignored falsy
+ * values and walked from root anyway.
+ */
 type InspectorFn = (
-  rootViewTag: number,
+  rootHostInstance: unknown | null,
   x: number,
   y: number,
   cb: (data: InspectorResult) => void
@@ -79,19 +84,36 @@ let inspectorFn: InspectorFn | null | undefined;
 function loadInspector(): InspectorFn | null {
   if (inspectorFn !== undefined) return inspectorFn;
 
-  try {
-    // Private import — see file header. We swallow any failure.
-    // The require is wrapped so static analysis tools don't try to
-    // resolve it at build time.
-    const moduleName =
-      "react-native/Libraries/Inspector/getInspectorDataForViewAtPoint";
+  // The inspector helper lives under different paths depending on
+  // the RN version. We try the modern (0.79+) path first, then
+  // fall back to the legacy (≤0.78) one. Each require is a string
+  // literal — Metro rejects dynamic require(variable) calls.
 
-    const mod = require(moduleName);
-    inspectorFn = (mod && (mod.default || mod)) as InspectorFn;
+  // Modern: RN 0.79+ moved it under src/private.
+  try {
+    const mod = require("react-native/src/private/devsupport/devmenu/elementinspector/getInspectorDataForViewAtPoint");
+    const fn = (mod && (mod.default || mod)) as InspectorFn;
+    if (typeof fn === "function") {
+      inspectorFn = fn;
+      return inspectorFn;
+    }
   } catch {
-    inspectorFn = null;
+    /* fall through */
   }
 
+  // Legacy: RN ≤0.78.
+  try {
+    const mod = require("react-native/Libraries/Inspector/getInspectorDataForViewAtPoint");
+    const fn = (mod && (mod.default || mod)) as InspectorFn;
+    if (typeof fn === "function") {
+      inspectorFn = fn;
+      return inspectorFn;
+    }
+  } catch {
+    /* fall through */
+  }
+
+  inspectorFn = null;
   return inspectorFn;
 }
 
@@ -181,20 +203,32 @@ export function identifyAtPoint(
   return new Promise((resolve) => {
     const fn = loadInspector();
     if (!fn) {
-      // Inspector not available (older RN, web, fastsupport stripped).
-      // Return a degraded placeholder so the rest of the flow still works.
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[archlens] inspector helper not available — annotations " +
+            "will fall back to coordinates-only. RN private API may " +
+            "have moved between versions."
+        );
+      }
       resolve(degradedFallback(x, y));
       return;
     }
 
-    const root = rootRef.current;
-    if (!root) {
-      resolve(degradedFallback(x, y));
-      return;
-    }
-
-    const tag = findNodeHandle(root);
-    if (tag == null) {
+    // RN 0.81's getInspectorDataForViewAtPoint reads
+    // `__internalInstanceHandle` off the first argument and crashes
+    // if it's null. We must pass the actual host instance — that's
+    // what RN attaches to the ref's `.current` of a host primitive
+    // <View> in dev builds.
+    const hostInstance = rootRef.current;
+    if (!hostInstance) {
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[archlens] root view ref isn't attached yet — falling " +
+            "back to coordinates-only annotation."
+        );
+      }
       resolve(degradedFallback(x, y));
       return;
     }
@@ -208,20 +242,34 @@ export function identifyAtPoint(
 
     // Some RN builds occasionally never invoke the callback. Cap the
     // wait at 500ms and fall back rather than hanging the UI.
-    const timeoutId = setTimeout(() => safeResolve(degradedFallback(x, y)), 500);
+    const timeoutId = setTimeout(
+      () => safeResolve(degradedFallback(x, y)),
+      500
+    );
 
     try {
-      fn(tag, x, y, (data) => {
+      fn(hostInstance, x, y, (data) => {
         clearTimeout(timeoutId);
         const hierarchy = data.hierarchy ?? [];
+
+        if (__DEV__ && hierarchy.length === 0) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[archlens] inspector returned an empty hierarchy at (" +
+              x +
+              "," +
+              y +
+              "). The new RN architecture may not expose component " +
+              "metadata in this build."
+          );
+        }
+
         const best = pickBestEntry(hierarchy);
         if (!best) {
           safeResolve(degradedFallback(x, y));
           return;
         }
 
-        // Try to read the component's bounds. The inspector usually
-        // returns a `frame`; some versions only expose `measure`.
         const fallbackBounds: ElementBounds = {
           x: x - 16,
           y: y - 16,
@@ -246,8 +294,15 @@ export function identifyAtPoint(
           bounds,
         });
       });
-    } catch {
+    } catch (err) {
       clearTimeout(timeoutId);
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[archlens] inspector call threw: " +
+            (err instanceof Error ? err.message : String(err))
+        );
+      }
       safeResolve(degradedFallback(x, y));
     }
   });
