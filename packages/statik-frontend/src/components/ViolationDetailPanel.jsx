@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Layout.jsx';
 
@@ -8,7 +8,22 @@ const SEV_COLORS = {
   minor: { dot: 'bg-status-warn shadow-[0_0_8px_rgba(245,158,11,0.5)]', label: 'Minor Violation' },
 };
 
-export default function ViolationDetailPanel({ rule, violation, onClose }) {
+// In-memory cache: closing and reopening the same violation in one
+// session shouldn't burn a second API call. Keyed by ruleId + file +
+// line + message so each unique violation gets a stable cache entry.
+const suggestionCache = new Map();
+
+function cacheKey(ruleId, violation) {
+  return ruleId + '|' + violation.file + '|' + (violation.line ?? '') + '|' + violation.message;
+}
+
+export default function ViolationDetailPanel({ rule, violation, onClose, projectName }) {
+  // AI suggestion lazy-loading state
+  const cached = suggestionCache.get(cacheKey(rule.ruleId, violation));
+  const [aiSuggestion, setAiSuggestion] = useState(cached?.suggestion ?? null);
+  const [aiLoading, setAiLoading] = useState(!cached);
+  const [aiError, setAiError] = useState(cached?.error ?? null);
+
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') onClose?.();
@@ -22,6 +37,58 @@ export default function ViolationDetailPanel({ rule, violation, onClose }) {
       document.body.style.overflow = prevOverflow;
     };
   }, [onClose]);
+
+  // Fetch the AI suggestion on mount if it's not already cached.
+  useEffect(() => {
+    const key = cacheKey(rule.ruleId, violation);
+    if (suggestionCache.has(key)) return; // already populated
+
+    let alive = true;
+    setAiLoading(true);
+    setAiError(null);
+
+    fetch('/violations/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectName: projectName || 'Untitled project',
+        ruleId: rule.ruleId,
+        ruleName: rule.name,
+        ruleDescription: rule.description,
+        violation: {
+          file: violation.file,
+          line: violation.line,
+          severity: violation.severity,
+          message: violation.message,
+        },
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || 'Request failed (' + res.status + ')');
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (!alive) return;
+        const suggestion = (data && data.suggestion) || '';
+        suggestionCache.set(key, { suggestion });
+        setAiSuggestion(suggestion);
+        setAiLoading(false);
+      })
+      .catch((err) => {
+        if (!alive) return;
+        const msg = err?.message || 'AI suggestion unavailable.';
+        suggestionCache.set(key, { error: msg });
+        setAiError(msg);
+        setAiLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [rule.ruleId, rule.name, rule.description, violation.file, violation.line, violation.severity, violation.message, projectName]);
 
   const sev = SEV_COLORS[violation.severity] || SEV_COLORS.minor;
 
@@ -97,20 +164,44 @@ export default function ViolationDetailPanel({ rule, violation, onClose }) {
             </div>
           </section>
 
-          {/* AI Recommendation (placeholder until AI is wired up) */}
+          {/* AI Suggestion — fetched lazily when this panel opens.
+              Falls back to a deterministic hand-written hint while
+              loading and if the API call fails. */}
           <section>
             <div className="flex items-center gap-2 mb-4">
               <Icon name="auto_awesome" className="text-primary-fixed-dim" filled />
               <h3 className="text-mono-label uppercase tracking-widest text-primary-fixed-dim">
                 Suggested Fix
               </h3>
+              {aiLoading && (
+                <span className="text-mono-label text-on-surface-variant italic">
+                  · generating…
+                </span>
+              )}
             </div>
             <div className="bg-surface-container border border-primary-fixed-dim/30 p-6 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-primary-fixed-dim/50" />
-              <p className="text-body-sm text-on-surface leading-relaxed italic">
-                {violation.suggestion ||
-                  defaultSuggestion(rule.ruleId, violation)}
-              </p>
+
+              {aiLoading ? (
+                <p className="text-body-sm text-on-surface-variant leading-relaxed italic">
+                  Claude is reading this violation and writing a fix suggestion…
+                </p>
+              ) : aiSuggestion ? (
+                <p className="text-body-sm text-on-surface leading-relaxed italic">
+                  {aiSuggestion}
+                </p>
+              ) : (
+                <>
+                  <p className="text-body-sm text-on-surface leading-relaxed italic">
+                    {violation.suggestion || defaultSuggestion(rule.ruleId, violation)}
+                  </p>
+                  {aiError && (
+                    <p className="text-mono-label text-on-surface-variant mt-2 not-italic">
+                      AI suggestion unavailable: {aiError}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           </section>
         </div>
@@ -131,11 +222,9 @@ export default function ViolationDetailPanel({ rule, violation, onClose }) {
   );
 }
 
-// TODO(jury-prep): replace this hand-written switch with a lazy
-// AI-generated suggestion. idea.md §4.4 promises AI generates
-// improvement suggestions per violation; today we only deliver
-// rule-level explanations. See /TODO.md "Per-violation AI
-// suggestions" for the full plan and estimated effort.
+// Fallback used when the AI suggestion fetch fails (offline, no
+// API key, model timeout, etc.). Hand-written per ruleId — generic
+// but at least always available.
 function defaultSuggestion(ruleId, v) {
   switch (ruleId) {
     case 'RULE_2_CIRCULAR_DEPS':

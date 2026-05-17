@@ -18,6 +18,7 @@ import multer from "multer";
 import { fromGitHub } from "./input/github-source";
 import { fromZipBuffer } from "./input/local-source";
 import { runAnalysis } from "./pipeline";
+import { suggestForViolation } from "./ai/suggestForViolation";
 
 // Also load .env from the workspace root — the backend's own folder
 // usually doesn't have one in the monorepo layout.
@@ -84,6 +85,61 @@ app.post("/analyze-github", async (req: Request, res: Response, next: NextFuncti
     next(err);
   }
 });
+
+/**
+ * POST /violations/suggest
+ * Body: {
+ *   projectName, ruleId, ruleName, ruleDescription,
+ *   violation: { file, line?, severity, message }
+ * }
+ *
+ * Generates a project-aware fix suggestion for ONE violation via
+ * Claude. The frontend calls this lazily when a user opens the
+ * ViolationDetailPanel, so cost stays proportional to actual
+ * interest rather than report size.
+ */
+app.post(
+  "/violations/suggest",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body ?? {};
+      const v = body.violation ?? {};
+
+      if (
+        typeof body.projectName !== "string" ||
+        typeof body.ruleId !== "string" ||
+        typeof body.ruleName !== "string" ||
+        typeof body.ruleDescription !== "string" ||
+        typeof v.file !== "string" ||
+        typeof v.severity !== "string" ||
+        typeof v.message !== "string"
+      ) {
+        return res.status(400).json({
+          error:
+            "Invalid request body. Expected projectName, ruleId, ruleName, " +
+            "ruleDescription, violation:{file, severity, message, line?}.",
+        });
+      }
+
+      const suggestion = await suggestForViolation({
+        projectName: body.projectName,
+        ruleId: body.ruleId,
+        ruleName: body.ruleName,
+        ruleDescription: body.ruleDescription,
+        violation: {
+          file: v.file,
+          line: typeof v.line === "number" ? v.line : undefined,
+          severity: v.severity,
+          message: v.message,
+        },
+      });
+
+      res.json({ suggestion });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // Central error handler — single place that shapes the user-facing
 // error message and never leaks secrets (e.g. the GitHub token).

@@ -29,6 +29,7 @@ import { computeOverallScore, grade, summarize } from "./scoring/scorer";
 import { toMarkdown } from "./reporting/markdown-reporter";
 import { EvaluatorConfig, Project, Report } from "./types";
 import { enrichRulesWithAi } from "./ai/enrichRulesWithAi";
+import { detectReactNative } from "./input/detect-rn";
 
 export interface AnalysisOutput {
   report: Report;
@@ -77,6 +78,25 @@ export async function runAnalysis(
       );
     }
 
+    // Refuse to analyze anything that isn't a React Native project.
+    // Running our RN-specific rule set on a Node CLI or a plain
+    // React web app produces meaningless scores — better to fail
+    // fast with a clear message than to lie confidently.
+    const detection = detectReactNative(source.rootPath, scan.packageJson);
+    if (!detection.isReactNative) {
+      const signalHint = detection.reasons.length > 0
+        ? " Detected signals: " + detection.reasons.join("; ") + "."
+        : " No React Native or Expo signals were found.";
+      throw new Error(
+        "Invalid project: this does not appear to be a React Native app. " +
+          "ArchLens analyzes React Native projects only. " +
+          "Please make sure your package.json declares 'react-native' (or " +
+          "'expo') as a dependency, or that the project includes a Metro " +
+          "config, an Expo app.json, or android/ and ios/ build folders." +
+          signalHint
+      );
+    }
+
     // AST first — classification depends on it.
     const astFactsByPath = analyzeFiles(scan.files);
 
@@ -105,6 +125,7 @@ export async function runAnalysis(
         totalLoc: project.files.reduce((s, f) => s + f.loc, 0),
         layerBreakdown: countLayers(project.files),
         classificationStats: classificationStats(project.files),
+        skippedSubprojects: scan.skippedSubprojects,
       },
       overallScore: overall,
       grade: grade(overall),

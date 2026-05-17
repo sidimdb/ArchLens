@@ -93,7 +93,11 @@ export default function App() {
         />
       )}
       {view === 'analyzing' && (
-        <AnalyzingPage projectName={pendingName} onCancel={newAnalysis} />
+        <AnalyzingPage
+          projectName={pendingName}
+          onCancel={newAnalysis}
+          aiEnabled={useAi}
+        />
       )}
       {view === 'report' && result && (
         <ReportPage data={result} onNewAnalysis={newAnalysis} />

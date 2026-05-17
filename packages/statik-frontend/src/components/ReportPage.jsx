@@ -59,6 +59,33 @@ export default function ReportPage({ data, onNewAnalysis }) {
         </p>
       </header>
 
+      {/* Skipped sub-projects notice */}
+      {Array.isArray(report.project.skippedSubprojects) &&
+        report.project.skippedSubprojects.length > 0 && (
+          <div className="bg-surface-container-low border-l-2 border-outline px-4 py-3 rounded-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Icon
+                name="folder_off"
+                className="text-on-surface-variant text-[14px]"
+              />
+              <span className="text-mono-label uppercase tracking-widest text-on-surface-variant font-bold">
+                Skipped sub-projects
+              </span>
+            </div>
+            <p className="text-body-sm text-on-surface-variant leading-snug mb-2">
+              The following {report.project.skippedSubprojects.length === 1 ? 'folder was' : 'folders were'} excluded from the analysis because they look like a separate backend rather than React Native code:
+            </p>
+            <ul className="space-y-1">
+              {report.project.skippedSubprojects.map((s, i) => (
+                <li key={i} className="text-mono-label text-on-surface-variant">
+                  <span className="font-mono text-on-surface">{s.path}</span>
+                  <span className="text-outline"> — {s.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
       {/* 01 — Overview: gauge left, headline + inline stats right */}
       <section>
         <SectionHeader number="01" title="Overview" />
@@ -173,6 +200,7 @@ export default function ReportPage({ data, onNewAnalysis }) {
         <ViolationDetailPanel
           rule={activeViolation.rule}
           violation={activeViolation.violation}
+          projectName={report.project.name}
           onClose={() => setActiveViolation(null)}
         />
       )}

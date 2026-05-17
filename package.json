@@ -23,6 +23,7 @@
     "runtime:verify:build": "npm run build -w @archlens/verify",
     "combined:dev": "npm run dev -w @archlens/combined",
     "combined:build": "npm run build -w @archlens/combined",
+    "test:statik": "npm test -w @archlens/statik-backend",
     "typecheck": "npm run typecheck --workspaces --if-present"
   }
 }

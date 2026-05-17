@@ -8,6 +8,7 @@ export default defineConfig({
     proxy: {
       '/analyze': 'http://localhost:8000',
       '/analyze-github': 'http://localhost:8000',
+      '/violations': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
     },
   },

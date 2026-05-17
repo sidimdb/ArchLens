@@ -52,14 +52,6 @@ const NETWORK_PACKAGES = new Set([
   "undici",
 ]);
 
-const NAVIGATION_HOOK_NAMES = new Set([
-  "useNavigation",
-  "useRoute",
-  "useNavigationState",
-  "useFocusEffect",
-  "useIsFocused",
-]);
-
 // React Native platform / device APIs we treat as architectural smells
 // when accessed directly from UI files. Hooks and services are allowed
 // to use them — they're the abstraction layer.
@@ -194,7 +186,6 @@ export function analyzeFile(file: ScannedFile): AstFacts {
     networkCalls: [],
     hasJsx: false,
     imports: [],
-    navigationHookCalls: 0,
     navigatorFactoryCalls: 0,
     reactNavigationImports: 0,
     navigationRegistrations: [],
@@ -375,9 +366,6 @@ export function analyzeFile(file: ScannedFile): AstFacts {
       }
 
       // Classification signals
-      if (NAVIGATION_HOOK_NAMES.has(calleeText)) {
-        facts.navigationHookCalls++;
-      }
       if (NAVIGATOR_FACTORY_NAMES.has(calleeText)) {
         facts.navigatorFactoryCalls++;
       }

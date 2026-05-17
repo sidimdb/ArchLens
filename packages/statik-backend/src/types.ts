@@ -85,9 +85,6 @@ export interface AstFacts {
 
   // ---- classification signals, populated by the AST analyzer ----
 
-  /** Calls to useNavigation()/useRoute()/useNavigationState(). */
-  navigationHookCalls: number;
-
   /** Calls to createStackNavigator/createBottomTabNavigator/etc. */
   navigatorFactoryCalls: number;
 
@@ -199,6 +196,11 @@ export interface ReportSummary {
   weakest: string[];
 }
 
+export interface SkippedSubproject {
+  path: string;
+  reason: string;
+}
+
 export interface Report {
   project: {
     name: string;
@@ -210,6 +212,12 @@ export interface Report {
       byConfidence: Record<Confidence, number>;
       unknownRatio: number;
     };
+    /**
+     * Folders the scanner skipped because they looked like a backend
+     * sub-project (own package.json with Express/Fastify/etc., or a
+     * conventional `backend/` / `server/` / `api/` name).
+     */
+    skippedSubprojects: SkippedSubproject[];
   };
   overallScore: number;
   grade: string;

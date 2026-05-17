@@ -1,31 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from './Layout.jsx';
 
-const STEPS = [
+const DETERMINISTIC_STEPS = [
   { key: 'scan', label: 'Scanning files', detail: 'Reading source files' },
-  { key: 'ast', label: 'Parsing AST', detail: 'Abstract Syntax Tree generated' },
-  { key: 'classify', label: 'Classifying file layers', detail: 'Determining architectural boundaries...' },
+  { key: 'ast', label: 'Parsing AST', detail: 'Building abstract syntax trees' },
+  { key: 'classify', label: 'Classifying file layers', detail: 'Determining architectural boundaries' },
   { key: 'deps', label: 'Building dependency graph', detail: 'Tracing module imports' },
-  { key: 'rules', label: 'Running rules', detail: 'Evaluating 5 architectural rules' },
-  { key: 'ai', label: 'Generating AI summary', detail: 'Producing natural-language insights' },
+  { key: 'rules', label: 'Running rules', detail: 'Evaluating 8 architectural rules' },
 ];
 
-export default function AnalyzingPage({ projectName, onCancel }) {
+const AI_STEP = {
+  key: 'ai',
+  label: 'Generating AI explanations',
+  detail: 'Claude writes project-aware explanations for failed rules',
+};
+
+export default function AnalyzingPage({ projectName, onCancel, aiEnabled = true }) {
+  // AI step only appears when the toggle is on. With AI off, the
+  // pipeline is significantly faster, so we skip the extra step too.
+  const STEPS = useMemo(
+    () => (aiEnabled ? [...DETERMINISTIC_STEPS, AI_STEP] : DETERMINISTIC_STEPS),
+    [aiEnabled]
+  );
+
   // Backend is synchronous — animate steps over an estimated duration.
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    // Step every ~1.4s; never reach the last step on its own — request resolution moves us to the report
+    // Step cadence: deterministic steps move ~1.4s each; the AI step
+    // stays "active" longer because AI calls take real time. We never
+    // reach the final step on our own — request resolution moves us to
+    // the report.
     const interval = setInterval(() => {
       setCurrentStep((s) => {
-        const next = Math.min(s + 1, STEPS.length - 1);
-        return next;
+        const isAtAiStep = aiEnabled && s === STEPS.length - 1;
+        // Hold on the AI step instead of looping past it.
+        if (isAtAiStep) return s;
+        return Math.min(s + 1, STEPS.length - 1);
       });
       setProgress((p) => Math.min(p + 100 / (STEPS.length + 1), 92));
     }, 1400);
     return () => clearInterval(interval);
-  }, []);
+  }, [aiEnabled, STEPS.length]);
 
   return (
     <div className="p-margin-page flex items-center justify-center min-h-[calc(100vh-64px)]">

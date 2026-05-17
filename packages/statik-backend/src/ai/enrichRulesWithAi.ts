@@ -54,6 +54,11 @@ const MAX_VIOLATIONS_IN_PROMPT = 5;
 /**
  * Mutates the rules in-place by setting `aiExplanation` on each
  * failed rule. Returns the same Report for caller convenience.
+ *
+ * Runs the per-rule AI calls in PARALLEL via Promise.allSettled —
+ * with 4 failed rules that drops total latency from ~20s to ~5s.
+ * Each call has its own timeout + retry inside ai-client, so a
+ * single rule failing never blocks the rest.
  */
 export async function enrichRulesWithAi(
   report: Report,
@@ -62,18 +67,17 @@ export async function enrichRulesWithAi(
   const failed = report.rules.filter((r) => r.status === "fail");
   if (failed.length === 0) return report;
 
-  // Sequential, not parallel: cheaper to debug, predictable rate
-  // limit behaviour, and the user is waiting on the report anyway —
-  // a few seconds of latency per rule is fine.
-  for (const rule of failed) {
-    try {
-      rule.aiExplanation = await explainOne(rule, options);
-    } catch {
-      // Per-rule failure must not block the report. Leave the
-      // aiExplanation undefined; frontend renders the deterministic
-      // explanation alone.
-    }
-  }
+  await Promise.allSettled(
+    failed.map(async (rule) => {
+      try {
+        rule.aiExplanation = await explainOne(rule, options);
+      } catch {
+        // Per-rule failure must not block the report. Leave the
+        // aiExplanation undefined; frontend renders the deterministic
+        // explanation alone.
+      }
+    })
+  );
 
   return report;
 }
