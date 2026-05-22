@@ -33,7 +33,7 @@ The landing page. Users upload a `.zip` of a React Native project or paste a Git
 
 The output of an analysis. Shows the overall score, the 8 architectural rules with pass/fail status, and AI-generated explanations for each failed rule.
 
-> Drop your real screenshots into `docs/screenshots/` and rename to match the paths above. (Runtime UX audit screenshots will be added once that module is finalized.)
+> Runtime UX audit screenshots will be added once that module is finalized.
 
 ---
 
