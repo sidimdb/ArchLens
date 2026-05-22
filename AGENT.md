@@ -192,6 +192,17 @@ contract.
 
 ---
 
+## Outstanding work (TODO list)
+
+See [`TODO.md`](./TODO.md) at the repo root for the current task
+list. It groups items by priority (must-do / should-do / nice-to-have
+/ out-of-scope) and points to the rough file paths that change for
+each one. When you pick up an item from there, follow the convention
+documented at the bottom of that file (mark `[~]` while working,
+`[x]` when shipped).
+
+---
+
 ## Getting help
 
 If you're an agent and a task here is ambiguous, **prefer asking the

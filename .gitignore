@@ -101,9 +101,9 @@ demo/*-real.md
 # ------------------------------------------------------------
 #  Internal notes — kept local, never pushed
 # ------------------------------------------------------------
-# Internal planning + private demo-day rehearsal notes. The
-# committed README.md files (root + per-package) are still tracked.
-TODO.md
+# Private demo-day rehearsal notes. The root README.md and
+# TODO.md are committed (the latter is the project's public
+# task list, referenced from AGENT.md).
 demo/SCRIPT.md
 demo/README.md
 
