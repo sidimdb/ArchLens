@@ -84,54 +84,6 @@ These improve robustness or user experience but are not deal-breakers.
 
 ---
 
-## 🟢 Nice to have — time-permitting polish
-
-Only if there's runway after must-do and should-do are done.
-
-- [ ] **Deployed instance** of the static analyzer (Vercel for
-  frontend, Render for backend). Lets jury test from their own
-  laptop. **~2–3 hours.**
-
-- [ ] **Cost monitoring** — show "this analysis used $X.XX of AI
-  credit" at the bottom of the report.
-
-- [ ] **CI/CD pipeline** with a green build badge on the GitHub
-  README. Pushes signal of professionalism.
-
-- [ ] **More unit tests** — currently only rules 1, 4, 5 have tests.
-  Add coverage for rules 2, 3, 6, 7, 8. **~2–3 hours.**
-
-- [ ] **Type-safety cleanup** — eliminate remaining `as any` casts
-  in `identifyAtPoint.ts` and Anthropic SDK glue.
-
----
-
-## 🔵 Future work — out of current scope
-
-Documented here so reviewers see the roadmap, but not committed for
-this phase of the project.
-
-- [ ] **Multi-framework support** — extend the analyzer beyond
-  React Native (Flutter, Ionic). Mentioned as future direction in
-  the project poster.
-
-- [ ] **Multi-reviewer / cloud-sync of annotations** — currently
-  annotations live in one phone's AsyncStorage; multi-reviewer
-  workflows require manual merging of Markdown files.
-
-- [ ] **VS Code extension** — IDE integration to run the analyzer
-  on save and surface violations inline.
-
-- [ ] **Per-language AI output** — currently Claude writes
-  explanations in English. Turkish (and other) output could be
-  added via a `--lang` flag.
-
-- [ ] **Page-level analysis in the static module** — currently
-  rules look at files; a future iteration could analyze whole
-  user flows (login → dashboard → settings) by following routes.
-
----
-
 ## How to use this file
 
 If you're a contributor or coding agent picking up an item:
