@@ -9,8 +9,7 @@
     "packages/statik-frontend",
     "packages/runtime-lib",
     "packages/runtime-verify",
-    "packages/runtime-demo",
-    "packages/combined"
+    "packages/runtime-demo"
   ],
   "scripts": {
     "statik:backend:dev": "npm run dev -w @archlens/statik-backend",
@@ -21,8 +20,6 @@
     "runtime:lib:typecheck": "npm run typecheck -w @archlens/runtime",
     "runtime:verify:dev": "npm run dev -w @archlens/verify",
     "runtime:verify:build": "npm run build -w @archlens/verify",
-    "combined:dev": "npm run dev -w @archlens/combined",
-    "combined:build": "npm run build -w @archlens/combined",
     "test:statik": "npm test -w @archlens/statik-backend",
     "typecheck": "npm run typecheck --workspaces --if-present"
   }
