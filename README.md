@@ -15,7 +15,7 @@ The two modes are complementary: static analysis catches structural issues in co
 
 📺 [Watch the demo on YouTube](https://www.youtube.com/watch?v=Y1ywwYOczZU) — walkthrough of the static analyzer mode (`archlens-statik`).
 
-> The runtime UX audit mode is documented in the screenshots below and can be demoed live by running `npx expo start` inside `packages/runtime-demo`.
+> The runtime UX audit mode can be demoed live by running `npx expo start` inside `packages/runtime-demo`.
 
 ---
 
