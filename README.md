@@ -13,26 +13,25 @@ The two modes are complementary: static analysis catches structural issues in co
 
 ## Demo video
 
-📺 [Watch the demo on YouTube](https://youtu.be/PLACEHOLDER) — walkthrough of the static analyzer mode (`archlens-statik`).
+📺 [Watch the demo on YouTube](https://www.youtube.com/watch?v=Y1ywwYOczZU) — walkthrough of the static analyzer mode (`archlens-statik`).
 
-> Replace the link above with your real YouTube URL once uploaded.
 > The runtime UX audit mode is documented in the screenshots below and can be demoed live by running `npx expo start` inside `packages/runtime-demo`.
 
 ---
 
 ## Screenshots
 
+### Static analyzer — home page
+
+![ArchLens static analyzer home page](docs/screenshots/statik-home.png)
+
+The landing page. Users upload a `.zip` of a React Native project or paste a GitHub URL to start the analysis.
+
 ### Static analyzer — report page
 
-![Static analyzer report page](docs/screenshots/statik-report.png)
+![ArchLens analysis report page](docs/screenshots/statik-report.png)
 
-The web UI after analyzing a project. Shows the overall score, per-rule pass/fail breakdown, and AI-generated explanations for failed rules.
-
-### Static analyzer — violation detail panel
-
-![Violation detail panel with AI suggestion](docs/screenshots/statik-violation-detail.png)
-
-Clicking a violation row opens a side panel with the rule description and an AI-generated fix suggestion specific to that file and line.
+The output of an analysis. Shows the overall score, the 8 architectural rules with pass/fail status, and AI-generated explanations for each failed rule.
 
 > Drop your real screenshots into `docs/screenshots/` and rename to match the paths above. (Runtime UX audit screenshots will be added once that module is finalized.)
 
