@@ -59,7 +59,7 @@ interface RefineState {
 export function AnnotationOverlay({
   rootRef,
 }: AnnotationOverlayProps): React.ReactElement | null {
-  const { isAnnotating, setPending, pending } = useArchLens();
+  const { isAnnotating, setPending, pending, setInspecting } = useArchLens();
   const [busy, setBusy] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [refine, setRefine] = useState<RefineState | null>(null);
@@ -68,6 +68,12 @@ export function AnnotationOverlay({
   useEffect(() => {
     if (!isAnnotating) setRefine(null);
   }, [isAnnotating]);
+
+  // Tell the rest of the UI (the FAB) when the control bar is up so it
+  // can get out of the way.
+  useEffect(() => {
+    setInspecting(refine !== null);
+  }, [refine, setInspecting]);
 
   // Hide the overlay when annotation mode is off, OR when a pending
   // annotation already exists (the NoteModal owns the screen then).
@@ -144,13 +150,37 @@ export function AnnotationOverlay({
         <Spotlight bounds={current.bounds} />
         <ElementTag bounds={current.bounds} name={current.componentName} />
 
-        {/* Control bar */}
+        {/* Inspector control bar */}
         <View style={styles.controlBar}>
+          <View style={styles.barHeader}>
+            <View style={styles.headerLeft}>
+              <View style={styles.liveDot} />
+              <Text style={styles.headerLabel}>INSPECTING</Text>
+            </View>
+            {/* Depth ladder: leftmost dot = most specific element,
+                rightmost = broadest. The filled dot is where you are. */}
+            <View style={styles.ladder}>
+              {candidates.map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.ladderDot,
+                    i === index && styles.ladderDotActive,
+                  ]}
+                />
+              ))}
+            </View>
+          </View>
+
           <Text style={styles.controlName} numberOfLines={1}>
             {current.componentName}
           </Text>
           <Text style={styles.controlSource} numberOfLines={1}>
             {sourceLabel}
+            {"   ·   " +
+              Math.round(current.bounds.width) +
+              "×" +
+              Math.round(current.bounds.height)}
           </Text>
 
           <View style={styles.stepRow}>
@@ -418,48 +448,84 @@ const styles = StyleSheet.create({
 
   controlBar: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 28,
+    left: 12,
+    right: 12,
+    bottom: 20,
     backgroundColor: colors.ink,
     borderRadius: radius.card,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     zIndex: layers.controlBar,
     ...shadow.float,
   },
-  controlName: { color: colors.white, fontSize: 16, fontWeight: "700" },
+  barHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 7 },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.highlight,
+  },
+  headerLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+  },
+  ladder: { flexDirection: "row", alignItems: "center", gap: 4 },
+  ladderDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.22)",
+  },
+  ladderDotActive: {
+    backgroundColor: colors.highlight,
+    width: 16,
+    borderRadius: 3,
+  },
+  controlName: { color: colors.white, fontSize: 16, fontWeight: "800" },
   controlSource: {
     color: colors.muted,
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "monospace",
     marginTop: 2,
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  stepRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  stepRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
   stepBtn: {
     flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: radius.box,
-    paddingVertical: 10,
-    alignItems: "center",
+    paddingVertical: 8,
   },
   stepBtnDisabled: { backgroundColor: "rgba(255,255,255,0.03)" },
-  stepLabel: { color: colors.white, fontSize: 14, fontWeight: "700" },
-  stepSub: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  stepLabel: { color: colors.white, fontSize: 13, fontWeight: "700" },
+  stepSub: { color: colors.muted, fontSize: 11 },
   stepTextDisabled: { color: "rgba(255,255,255,0.25)" },
 
-  actionRow: { flexDirection: "row", gap: 10 },
+  actionRow: { flexDirection: "row", gap: 8 },
   actionBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 9,
     borderRadius: radius.box,
     alignItems: "center",
     justifyContent: "center",
   },
   cancelBtn: { backgroundColor: "rgba(255,255,255,0.10)" },
-  cancelText: { color: colors.white, fontSize: 14, fontWeight: "600" },
+  cancelText: { color: colors.white, fontSize: 13, fontWeight: "600" },
   confirmBtn: { backgroundColor: colors.highlight },
-  confirmText: { color: colors.white, fontSize: 14, fontWeight: "700" },
+  confirmText: { color: colors.white, fontSize: 13, fontWeight: "700" },
   pressed: { opacity: 0.8 },
 });

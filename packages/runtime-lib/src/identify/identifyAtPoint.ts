@@ -35,6 +35,7 @@
  */
 
 import type { RefObject } from "react";
+import { Dimensions, findNodeHandle } from "react-native";
 import type { View } from "react-native";
 import type { ElementBounds, ElementInfo } from "../state/context";
 
@@ -43,20 +44,33 @@ import type { ElementBounds, ElementInfo } from "../state/context";
  * the real type lives in RN's internals and we don't want to break
  * across minor versions.
  */
+type MeasureCb = (
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  pageX: number,
+  pageY: number
+) => void;
+type MeasureFn = (cb: MeasureCb) => void;
+
 interface InspectorEntry {
   name?: string;
   source?: { fileName?: string; lineNumber?: number };
-  measure?: (
-    cb: (
-      x: number,
-      y: number,
-      width: number,
-      height: number,
-      pageX: number,
-      pageY: number
-    ) => void
-  ) => void;
+  measure?: MeasureFn;
   frame?: { left: number; top: number; width: number; height: number };
+  /**
+   * RN's inspector exposes per-node data lazily through this getter
+   * rather than a direct `measure`. Calling it with a node-handle
+   * resolver (`findNodeHandle`) yields `{ measure, frame, source }`
+   * for THAT specific ancestor — which is how we get a real bounding
+   * box for every level of the hierarchy, not just the tapped leaf.
+   */
+  getInspectorData?: (getNodeHandle: typeof findNodeHandle) => {
+    measure?: MeasureFn;
+    frame?: { left: number; top: number; width: number; height: number };
+    source?: { fileName?: string; lineNumber?: number };
+  };
 }
 
 interface InspectorResult {
@@ -440,18 +454,75 @@ function frameToBounds(frame: {
 }
 
 /**
- * Resolve a single entry's on-screen bounds. Prefers a fresh
- * `measure()` (gives page coordinates), then the entry's own static
- * `frame`, then the supplied fallback. Capped at 120ms so a slow or
- * silent measure can't stall the whole probe.
+ * Find a usable `measure` for an entry. RN exposes it directly on
+ * some versions and lazily via `getInspectorData(findNodeHandle)` on
+ * others — we try both. Also surfaces a static `frame` if that's all
+ * that's available.
+ */
+function resolveMeasure(entry: InspectorEntry): {
+  measure: MeasureFn | null;
+  frame?: { left: number; top: number; width: number; height: number };
+} {
+  if (typeof entry.measure === "function") {
+    return { measure: entry.measure, frame: entry.frame };
+  }
+  if (typeof entry.getInspectorData === "function") {
+    try {
+      const data = entry.getInspectorData(findNodeHandle);
+      if (data) {
+        return {
+          measure: typeof data.measure === "function" ? data.measure : null,
+          frame: data.frame ?? entry.frame,
+        };
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return { measure: null, frame: entry.frame };
+}
+
+/**
+ * A measured box is only trustworthy if it has a positive, sane size
+ * AND actually contains the tapped point. RN's per-node `measure`
+ * occasionally returns stale or wrong-coordinate-space values for
+ * ancestors; rejecting boxes that don't contain the finger filters
+ * those out cleanly (the caller then falls back to a known-good box).
+ */
+function isPlausibleBox(
+  b: ElementBounds,
+  point: { x: number; y: number },
+  screen: { w: number; h: number }
+): boolean {
+  if (!(b.width > 0 && b.height > 0)) return false;
+  // Reject absurdly large boxes (wrong unit / coordinate space).
+  if (b.width > screen.w * 2 || b.height > screen.h * 2) return false;
+  const t = 4; // small tolerance for sub-pixel edges
+  if (point.x < b.x - t || point.x > b.x + b.width + t) return false;
+  if (point.y < b.y - t || point.y > b.y + b.height + t) return false;
+  return true;
+}
+
+/**
+ * Resolve a single entry's real on-screen bounds. Prefers a fresh
+ * `measure()` (page coordinates for THIS node) but only if the result
+ * is plausible; then a static `frame`; then the supplied fallback
+ * (which is always the known-good leaf frame). Capped at 120ms so a
+ * slow or silent measure can't stall the whole probe.
  */
 function measureEntry(
   entry: InspectorEntry,
-  fallback: ElementBounds
+  fallback: ElementBounds,
+  point: { x: number; y: number },
+  screen: { w: number; h: number }
 ): Promise<ElementBounds> {
   return new Promise((resolve) => {
-    const fromFrame = entry.frame ? frameToBounds(entry.frame) : fallback;
-    if (typeof entry.measure !== "function") {
+    const { measure, frame } = resolveMeasure(entry);
+    const fromFrame =
+      frame && isPlausibleBox(frameToBounds(frame), point, screen)
+        ? frameToBounds(frame)
+        : fallback;
+    if (!measure) {
       resolve(fromFrame);
       return;
     }
@@ -462,20 +533,12 @@ function measureEntry(
       resolve(fromFrame);
     }, 120);
     try {
-      entry.measure((_x, _y, width, height, pageX, pageY) => {
+      measure((_x, _y, width, height, pageX, pageY) => {
         if (done) return;
         done = true;
         clearTimeout(timer);
-        if (
-          typeof pageX === "number" &&
-          typeof pageY === "number" &&
-          width > 0 &&
-          height > 0
-        ) {
-          resolve({ x: pageX, y: pageY, width, height });
-        } else {
-          resolve(fromFrame);
-        }
+        const measured = { x: pageX, y: pageY, width, height };
+        resolve(isPlausibleBox(measured, point, screen) ? measured : fromFrame);
       });
     } catch {
       clearTimeout(timer);
@@ -484,32 +547,33 @@ function measureEntry(
   });
 }
 
+/** Two boxes are "the same" if every edge is within 2px. */
+function sameBounds(a: ElementBounds, b: ElementBounds): boolean {
+  return (
+    Math.abs(a.x - b.x) <= 2 &&
+    Math.abs(a.y - b.y) <= 2 &&
+    Math.abs(a.width - b.width) <= 2 &&
+    Math.abs(a.height - b.height) <= 2
+  );
+}
+
 /**
- * Pick the starting index within a filtered (root → leaf) list, using
- * the same priority order as `pickBestEntry`. Returns a root→leaf
- * index; the caller flips it to the leaf→root ordering it returns.
+ * When two stacked levels occupy the same rectangle, keep the deeper
+ * (leaf-ward) `child` — that's the element actually under the finger
+ * — but inherit the `parent`'s source file if the child has none, so
+ * we don't lose the "where is this in code" info to a host wrapper.
  */
-function pickBestIndexRootToLeaf(filtered: InspectorEntry[]): number {
-  // Pass 1: deepest specific (non-screen) user component with source.
-  for (let i = filtered.length - 1; i >= 0; i--) {
-    const e = filtered[i]!;
-    if (isUserComponent(e) && e.source?.fileName && !isScreenLike(e)) return i;
+function mergeSameBounds(
+  parent: { entry: InspectorEntry; bounds: ElementBounds },
+  child: { entry: InspectorEntry; bounds: ElementBounds }
+): { entry: InspectorEntry; bounds: ElementBounds } {
+  if (!child.entry.source?.fileName && parent.entry.source?.fileName) {
+    return {
+      entry: { ...child.entry, source: parent.entry.source },
+      bounds: child.bounds,
+    };
   }
-  // Pass 2: deepest interactive host.
-  for (let i = filtered.length - 1; i >= 0; i--) {
-    if (isInteractive(filtered[i]!)) return i;
-  }
-  // Pass 3: deepest user component with source (screens included).
-  for (let i = filtered.length - 1; i >= 0; i--) {
-    const e = filtered[i]!;
-    if (isUserComponent(e) && e.source?.fileName) return i;
-  }
-  // Pass 4: any user component.
-  for (let i = filtered.length - 1; i >= 0; i--) {
-    if (isUserComponent(filtered[i]!)) return i;
-  }
-  // Pass 5: the leaf.
-  return filtered.length - 1;
+  return child;
 }
 
 async function buildHierarchyPick(
@@ -529,32 +593,64 @@ async function buildHierarchyPick(
   }
   if (filtered.length === 0) return single();
 
+  // Cap the ladder at the screen. The hierarchy is root → leaf, so
+  // anything BEFORE the innermost screen-like component (navigators,
+  // tab bars, providers, the root host view) is above the visible
+  // screen and not worth stepping through — drop it. The screen
+  // itself stays as the top rung.
+  let lastScreen = -1;
+  for (let i = 0; i < filtered.length; i++) {
+    if (isScreenLike(filtered[i]!)) lastScreen = i;
+  }
+  if (lastScreen > 0) filtered = filtered.slice(lastScreen);
+
   const fallbackBounds: ElementBounds = {
     x: x - 16,
     y: y - 16,
     width: 32,
     height: 32,
   };
-  const dataFallback = data.frame ? frameToBounds(data.frame) : fallbackBounds;
+  const dataFallback =
+    data.frame && data.frame.width > 0 ? frameToBounds(data.frame) : fallbackBounds;
+
+  const win = Dimensions.get("window");
+  const screen = { w: win.width || 400, h: win.height || 800 };
+  const point = { x, y };
 
   const boundsList = await Promise.all(
-    filtered.map((e) => measureEntry(e, dataFallback))
+    filtered.map((e) => measureEntry(e, dataFallback, point, screen))
   );
 
-  const rootToLeaf: ElementInfo[] = filtered.map((e, i) => ({
-    componentName: e.name ?? "unknown",
-    fileName: e.source?.fileName,
-    lineNumber: e.source?.lineNumber,
+  // Collapse consecutive levels that occupy the same rectangle — a
+  // wrapper View the same size as its child is not a distinct thing
+  // to audit, and stepping onto it would look like nothing changed.
+  const withBounds = filtered.map((entry, i) => ({
+    entry,
     bounds: boundsList[i]!,
   }));
+  const deduped: { entry: InspectorEntry; bounds: ElementBounds }[] = [];
+  for (const c of withBounds) {
+    const last = deduped[deduped.length - 1];
+    if (last && sameBounds(last.bounds, c.bounds)) {
+      deduped[deduped.length - 1] = mergeSameBounds(last, c);
+    } else {
+      deduped.push(c);
+    }
+  }
 
-  const bestRoot = pickBestIndexRootToLeaf(filtered);
+  const rootToLeaf: ElementInfo[] = deduped.map((c) => ({
+    componentName: c.entry.name ?? "unknown",
+    fileName: c.entry.source?.fileName,
+    lineNumber: c.entry.source?.lineNumber,
+    bounds: c.bounds,
+  }));
 
-  // Return leaf → root so index 0 is the most specific element.
+  // Return leaf → root so index 0 is the most specific element. Start
+  // the selection on that leaf — the exact element under the finger —
+  // so refinement always begins at "what you tapped" and steps UP from
+  // there, matching the reviewer's mental model.
   const candidates = [...rootToLeaf].reverse();
-  const bestIndex = rootToLeaf.length - 1 - bestRoot;
-
-  return { candidates, bestIndex };
+  return { candidates, bestIndex: 0 };
 }
 
 /**

@@ -93,6 +93,7 @@ function DevProvider({
   const appRef = useRef<View | null>(null);
 
   const [isAnnotating, setIsAnnotating] = useState<boolean>(false);
+  const [isInspecting, setInspecting] = useState<boolean>(false);
   const [pending, setPending] = useState<PendingAnnotation | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [storageWarning, setStorageWarning] = useState<boolean>(false);
@@ -215,6 +216,8 @@ function DevProvider({
     () => ({
       isAnnotating,
       toggleAnnotating,
+      isInspecting,
+      setInspecting,
       pending,
       setPending,
       saveAnnotation,
@@ -228,6 +231,7 @@ function DevProvider({
     [
       isAnnotating,
       toggleAnnotating,
+      isInspecting,
       pending,
       saveAnnotation,
       annotations,

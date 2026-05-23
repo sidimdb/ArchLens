@@ -107,6 +107,15 @@ export interface ArchLensContextValue {
   toggleAnnotating: () => void;
 
   /**
+   * True while the reviewer is refining a selection in the live
+   * element inspector (the control bar is up). The floating button
+   * hides itself in this state so it can't overlap the control bar.
+   */
+  isInspecting: boolean;
+  /** Set by the overlay when it enters / leaves the refine phase. */
+  setInspecting: (v: boolean) => void;
+
+  /**
    * Captured but not yet noted. While this is non-null, the
    * NoteModal is shown.
    */

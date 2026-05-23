@@ -37,7 +37,7 @@ interface ScreenGroup {
 export function SessionMenu(): React.ReactElement | null {
   const {
     annotations,
-    isAnnotating,
+    isInspecting,
     storageWarning,
     exportSession,
     clearAnnotations,
@@ -72,7 +72,11 @@ export function SessionMenu(): React.ReactElement | null {
     return { numberById, groups };
   }, [annotations]);
 
-  if (annotations.length === 0 || isAnnotating) return null;
+  // The pill is visible whenever there's at least one issue — including
+  // mid-audit, so the reviewer can see the running count and open the
+  // list. It only hides while the inspector control bar is up, so it
+  // can't collide with that bottom-of-screen UI.
+  if (annotations.length === 0 || isInspecting) return null;
 
   const onExport = async (): Promise<void> => {
     if (busy) return;

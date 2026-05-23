@@ -16,8 +16,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useArchLens } from "../state/context";
 import { colors, radius, shadow, layers } from "../theme";
 
-export function FloatingButton(): React.ReactElement {
-  const { isAnnotating, toggleAnnotating } = useArchLens();
+export function FloatingButton(): React.ReactElement | null {
+  const { isAnnotating, toggleAnnotating, isInspecting } = useArchLens();
+
+  // While refining a selection, the inspector's own control bar owns
+  // the bottom of the screen — hide the FAB so it can't sit on top of
+  // (and block) those buttons.
+  if (isInspecting) return null;
 
   return (
     <Pressable
@@ -38,7 +43,7 @@ export function FloatingButton(): React.ReactElement {
         <>
           <Text style={styles.icon}>×</Text>
           <Text style={styles.label} numberOfLines={1}>
-            Tap an element
+            Cancel audit
           </Text>
         </>
       ) : (

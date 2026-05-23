@@ -1,15 +1,17 @@
 /**
- * Note input modal. Opens after a successful tap+capture and lets
- * the reviewer add a free-form note describing the issue.
+ * Note input sheet. Opens after the reviewer confirms an element in
+ * the inspector and lets them tag a category + write a note.
  *
- * The modal shows a thumbnail of the captured screenshot with a
- * read-only red box drawn over the auto-detected element's bounds.
- * The box is a visual confirmation of what the tap identified — it
- * is NOT editable. Trusting the detection (Option B's improved
- * heuristic) keeps the flow simple: tap → confirm → note → save.
+ * Layout, top → bottom:
+ *   - grabber handle + title (matches the session sheet)
+ *   - element-identity card (component name, source, screen)
+ *   - screenshot preview with a read-only highlight of the element
+ *   - category chips
+ *   - free-form note field
+ *   - Cancel / Save actions
  *
  * Save → finalizes the pending annotation and persists it.
- * Cancel → discards the pending annotation, returns to overlay.
+ * Cancel → discards the pending annotation, returns to the overlay.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -30,9 +32,9 @@ import {
   UX_CATEGORIES,
   type UxCategory,
 } from "../state/context";
-import { colors } from "../theme";
+import { colors, radius, shadow } from "../theme";
 
-const SCREENSHOT_DISPLAY_WIDTH = 280;
+const SCREENSHOT_DISPLAY_WIDTH = 240;
 
 export function NoteModal(): React.ReactElement | null {
   const { pending, setPending, saveAnnotation } = useArchLens();
@@ -62,9 +64,9 @@ export function NoteModal(): React.ReactElement | null {
   if (!pending) return null;
 
   // ---------- Geometry ----------
-  // Scale the captured screen coordinates into the modal's preview
-  // using the actual screen dimensions captured at annotation time,
-  // so the box lands correctly on every phone width.
+  // Scale the captured screen coordinates into the preview using the
+  // real screen dimensions captured at annotation time, so the box
+  // lands correctly on every phone width.
   const screenWidth = pending.screenDimensions.width || 390;
   const screenHeight = pending.screenDimensions.height || 800;
   const scale = SCREENSHOT_DISPLAY_WIDTH / screenWidth;
@@ -77,6 +79,11 @@ export function NoteModal(): React.ReactElement | null {
     width: Math.max(b.width * scale, 4),
     height: Math.max(b.height * scale, 4),
   };
+
+  const sourceLine = pending.element.fileName
+    ? pending.element.fileName.split(/[\\/]/).pop()! +
+      (pending.element.lineNumber ? ":" + pending.element.lineNumber : "")
+    : "no source map";
 
   const onCancel = (): void => {
     setPending(null);
@@ -96,6 +103,8 @@ export function NoteModal(): React.ReactElement | null {
     }
   };
 
+  const canSave = !saving && note.trim().length > 0;
+
   return (
     <Modal
       visible={true}
@@ -108,35 +117,31 @@ export function NoteModal(): React.ReactElement | null {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.card}>
+          <View style={styles.handle} />
+
           <ScrollView
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
             <Text style={styles.title}>New annotation</Text>
 
-            <View style={styles.metaBlock}>
-              <MetaRow
-                label="Component"
-                value={pending.element.componentName}
-              />
-              {pending.element.fileName ? (
-                <MetaRow
-                  label="Source"
-                  value={
-                    pending.element.fileName +
-                    (pending.element.lineNumber
-                      ? ":" + pending.element.lineNumber
-                      : "")
-                  }
-                />
-              ) : null}
-              <MetaRow label="Screen" value={pending.screenName} />
+            {/* Element identity */}
+            <View style={styles.identityCard}>
+              <View style={styles.identityHead}>
+                <View style={styles.codeChip}>
+                  <Text style={styles.codeChipText}>{"</>"}</Text>
+                </View>
+                <Text style={styles.identityName} numberOfLines={1}>
+                  {pending.element.componentName}
+                </Text>
+              </View>
+              <Text style={styles.identityMeta} numberOfLines={1}>
+                {sourceLine} · {pending.screenName}
+              </Text>
             </View>
 
-            <Text style={styles.hint}>
-              The red box shows the element detected by your tap.
-            </Text>
-
+            {/* Screenshot preview */}
             <View
               style={[
                 styles.preview,
@@ -152,10 +157,13 @@ export function NoteModal(): React.ReactElement | null {
                 resizeMode="cover"
                 fadeDuration={0}
               />
-              {/* Read-only highlight of the detected element. */}
               <View style={[styles.box, boxStyle]} pointerEvents="none" />
             </View>
+            <Text style={styles.caption}>
+              Highlight shows the element you selected
+            </Text>
 
+            {/* Category */}
             <Text style={styles.label}>Category</Text>
             <View style={styles.chipRow}>
               {UX_CATEGORIES.map((c) => {
@@ -166,7 +174,11 @@ export function NoteModal(): React.ReactElement | null {
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     onPress={() => setCategory(selected ? null : c)}
-                    style={[styles.chip, selected && styles.chipSelected]}
+                    style={({ pressed }) => [
+                      styles.chip,
+                      selected && styles.chipSelected,
+                      pressed && !selected && styles.chipPressed,
+                    ]}
                   >
                     <Text
                       style={[
@@ -181,13 +193,14 @@ export function NoteModal(): React.ReactElement | null {
               })}
             </View>
 
+            {/* Note */}
             <Text style={styles.label}>Note</Text>
             <TextInput
               style={styles.input}
               value={note}
               onChangeText={setNote}
               placeholder="What's wrong with this element?"
-              placeholderTextColor="#999"
+              placeholderTextColor="#9CA3AF"
               multiline={true}
               numberOfLines={4}
               autoFocus={true}
@@ -196,46 +209,34 @@ export function NoteModal(): React.ReactElement | null {
 
           <View style={styles.actions}>
             <Pressable
-              style={[styles.btn, styles.btnCancel]}
+              style={({ pressed }) => [
+                styles.btn,
+                styles.btnCancel,
+                pressed && styles.btnPressed,
+              ]}
               onPress={onCancel}
               disabled={saving}
             >
               <Text style={styles.btnCancelText}>Cancel</Text>
             </Pressable>
             <Pressable
-              style={[
+              style={({ pressed }) => [
                 styles.btn,
                 styles.btnSave,
-                (saving || note.trim().length === 0) && styles.btnDisabled,
+                !canSave && styles.btnDisabled,
+                pressed && canSave && styles.btnPressed,
               ]}
               onPress={onSave}
-              disabled={saving || note.trim().length === 0}
+              disabled={!canSave}
             >
               <Text style={styles.btnSaveText}>
-                {saving ? "Saving…" : "Save"}
+                {saving ? "Saving…" : "Save annotation"}
               </Text>
             </Pressable>
           </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
-  );
-}
-
-function MetaRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.ReactElement {
-  return (
-    <View style={styles.metaRow}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={styles.metaValue} numberOfLines={2}>
-        {value}
-      </Text>
-    </View>
   );
 }
 
@@ -247,10 +248,18 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#ffffff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingTop: 20,
-    maxHeight: "90%",
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
+    paddingTop: 10,
+    maxHeight: "92%",
+  },
+  handle: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#e5e7eb",
+    marginBottom: 10,
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -258,109 +267,137 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111",
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.ink,
     alignSelf: "flex-start",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  metaBlock: {
+
+  // ----- Element identity card -----
+  identityCard: {
     width: "100%",
-    backgroundColor: "#f5f5f5",
-    borderRadius: 8,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#eef2f7",
+    borderRadius: radius.box,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  metaRow: { flexDirection: "row", marginBottom: 4 },
-  metaLabel: {
-    width: 90,
+  identityHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  codeChip: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    backgroundColor: colors.highlightFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  codeChipText: {
+    color: colors.highlight,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  identityName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.ink,
+  },
+  identityMeta: {
     fontSize: 12,
-    color: "#666",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    color: colors.muted,
+    fontFamily: "monospace",
+    marginTop: 6,
   },
-  metaValue: { flex: 1, fontSize: 13, color: "#111", fontFamily: "monospace" },
-  hint: {
-    width: "100%",
-    fontSize: 12,
-    color: "#666",
-    fontStyle: "italic",
-    marginBottom: 10,
-  },
+
+  // ----- Preview -----
   preview: {
     backgroundColor: "#000",
-    borderRadius: 8,
+    borderRadius: radius.box,
     overflow: "hidden",
-    marginBottom: 16,
     position: "relative",
   },
   previewImage: { width: "100%", height: "100%" },
   box: {
     position: "absolute",
     borderWidth: 2,
-    borderColor: "#DC2626",
-    backgroundColor: "rgba(220, 38, 38, 0.18)",
+    borderColor: colors.highlight,
+    backgroundColor: colors.highlightFill,
+    borderRadius: 2,
   },
+  caption: {
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 8,
+    marginBottom: 18,
+  },
+
+  // ----- Labels / chips / input -----
   label: {
     alignSelf: "flex-start",
     fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
+    fontWeight: "700",
+    color: colors.inkSoft,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 6,
+    letterSpacing: 0.6,
+    marginBottom: 8,
   },
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
     alignSelf: "flex-start",
-    marginBottom: 16,
+    marginBottom: 18,
   },
   chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#e5e7eb",
     backgroundColor: "#fff",
   },
+  chipPressed: { backgroundColor: "#f3f4f6" },
   chipSelected: {
     backgroundColor: colors.highlight,
     borderColor: colors.highlight,
   },
-  chipText: { fontSize: 13, color: "#374151", fontWeight: "600" },
+  chipText: { fontSize: 13, color: colors.inkSoft, fontWeight: "600" },
   chipTextSelected: { color: colors.white },
   input: {
     width: "100%",
-    minHeight: 80,
+    minHeight: 90,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
+    borderColor: "#e5e7eb",
+    borderRadius: radius.box,
+    padding: 12,
     fontSize: 14,
-    color: "#111",
+    color: colors.ink,
+    backgroundColor: "#fcfcfd",
     textAlignVertical: "top",
   },
+
+  // ----- Actions -----
   actions: {
     flexDirection: "row",
     gap: 12,
     padding: 16,
     paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
+    borderTopColor: "#f0f0f0",
   },
   btn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 13,
+    borderRadius: radius.box,
     alignItems: "center",
     justifyContent: "center",
   },
+  btnPressed: { opacity: 0.85 },
   btnCancel: { backgroundColor: "#f3f4f6" },
-  btnCancelText: { color: "#374151", fontSize: 14, fontWeight: "600" },
-  btnSave: { backgroundColor: "#1a1a1a" },
-  btnSaveText: { color: "#ffffff", fontSize: 14, fontWeight: "700" },
+  btnCancelText: { color: colors.inkSoft, fontSize: 14, fontWeight: "600" },
+  btnSave: { backgroundColor: colors.ink, ...shadow.float },
+  btnSaveText: { color: colors.white, fontSize: 14, fontWeight: "700" },
   btnDisabled: { opacity: 0.4 },
 });
