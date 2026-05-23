@@ -64,9 +64,13 @@ These improve robustness or user experience but are not deal-breakers.
   (e.g. *"30% of analyzed files could not be confidently classified
   by layer"*). Currently it's a black-box badge. **~30 min.**
 
-- [ ] **Verify CLI matches after-screenshots by issue ID, not index** —
-  more robust when a developer skips fixing some issues or reorders
-  them. **~30 min.**
+- [x] **Verify CLI matches after-screenshots by issue ID or index** —
+  `findAfterScreenshot` now scans the after folder and matches by
+  either the issue number (`issue-N`) or the annotation's stable id
+  (`<issue-id>`), case-insensitively, across `.png/.jpg/.jpeg/.webp`.
+  A developer who fixed only issues #1, #3, #5 can name files
+  accordingly without renumbering — skipped issues are `no-after`.
+  Documented in the verify README.
 
 - [ ] **Production-build no-op opt-out for the runtime library** — add
   an explicit `disabled` prop on `<ArchLensProvider>` in addition

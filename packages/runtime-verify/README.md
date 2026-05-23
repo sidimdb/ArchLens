@@ -100,9 +100,18 @@ issue-3.png
 ...
 ```
 
-Variants accepted: `.jpg`, `.jpeg`, `issue_N.png`, or
-`<issue-id>.png` (where `<issue-id>` is the id from the JSON
-appendix).
+Matching is **case-insensitive** and accepts any common image
+extension (`.png`, `.jpg`, `.jpeg`, `.webp`). The basename can be:
+
+- `issue-N` (preferred) — e.g. `issue-1.png`
+- `issue_N` or `issueN`
+- `<issue-id>` — the annotation's stable id from the JSON appendix
+  (e.g. `ann_lzv7p_x9k4mq.png`)
+
+Files are matched by **either the issue number or the issue id**, so
+if you only fixed issues #1, #3 and #5 you can name your files
+`issue-1.png`, `issue-3.png`, `issue-5.png` without renumbering —
+the skipped issues are simply marked `no-after`.
 
 ### Exit codes
 

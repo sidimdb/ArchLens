@@ -86,29 +86,51 @@ function printHelpAndExit(code: number): never {
   process.exit(code);
 }
 
+const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+
 /**
- * Locate the after-screenshot for a given issue. Tries common
- * naming patterns so the developer doesn't have to be too precise:
- *   - issue-N.png        ← preferred
- *   - issue-N.jpg
- *   - issue_N.png
- *   - <issue-id>.png
+ * Locate the after-screenshot for a given issue.
+ *
+ * Matches by EITHER the issue's index (its `Issue #N` number) OR its
+ * stable id from the report's JSON appendix. This means a developer
+ * who only fixed issues #1, #3, #5 can name files `issue-1.png`,
+ * `issue-3.png`, `issue-5.png` without renumbering — skipped issues
+ * just get `no-after`.
+ *
+ * Matching is case-insensitive and accepts any common image
+ * extension. Accepted basenames (before the extension):
+ *   - issue-N   (preferred)
+ *   - issue_N
+ *   - issueN
+ *   - <issue-id>   (the annotation id, e.g. ann_lzv7p_x9k4mq)
  */
 function findAfterScreenshot(
   afterDir: string,
   issue: ReportIssue
 ): string | null {
-  const candidates = [
-    "issue-" + issue.index + ".png",
-    "issue-" + issue.index + ".jpg",
-    "issue-" + issue.index + ".jpeg",
-    "issue_" + issue.index + ".png",
-    issue.id + ".png",
-  ];
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(afterDir);
+  } catch {
+    return null;
+  }
 
-  for (const name of candidates) {
-    const full = path.join(afterDir, name);
-    if (fs.existsSync(full)) return full;
+  const acceptedBasenames = new Set(
+    [
+      "issue-" + issue.index,
+      "issue_" + issue.index,
+      "issue" + issue.index,
+      issue.id,
+    ].map((s) => s.toLowerCase())
+  );
+
+  for (const entry of entries) {
+    const ext = path.extname(entry).toLowerCase();
+    if (!IMAGE_EXTS.has(ext)) continue;
+    const base = path.basename(entry, path.extname(entry)).toLowerCase();
+    if (acceptedBasenames.has(base)) {
+      return path.join(afterDir, entry);
+    }
   }
   return null;
 }
