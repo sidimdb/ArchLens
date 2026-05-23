@@ -1,54 +1,97 @@
 /**
  * Settings screen.
  *
- * 🎯 Planted UX issue: each row separates its label from its toggle
- * by 80% of the screen width with no visual grouping (no row
- * background, no divider). It's not immediately clear which switch
- * controls which label.
+ * Mixes properly-grouped setting cards with one deliberately bad
+ * section so a reviewer can compare them side by side.
+ *
+ * 🎯 Planted UX issue: the "Notifications" rows separate each label
+ * from its toggle by the full screen width with no card, divider, or
+ * grouping — it's not clear which switch controls which label.
  */
 
 import React, { useState } from "react";
 import { StyleSheet, Switch, Text, View } from "react-native";
+import { palette, spacing } from "../components/theme";
+import { Card, Divider, Screen, SectionHeader } from "../components/ui";
+import { SecondaryButton } from "../components/buttons";
+import { ListRow } from "../components/ListRow";
 
 export function SettingsScreen(): React.ReactElement {
   const [push, setPush] = useState<boolean>(false);
   const [email, setEmail] = useState<boolean>(true);
   const [marketing, setMarketing] = useState<boolean>(false);
+  const [dark, setDark] = useState<boolean>(false);
+  const [haptics, setHaptics] = useState<boolean>(true);
 
   return (
-    <View style={styles.container}>
+    <Screen>
       <Text style={styles.title}>Settings</Text>
 
-      <View style={styles.row}>
-        <Text style={styles.label}>Push notifications</Text>
+      {/* Properly grouped account section */}
+      <SectionHeader title="Account" />
+      <Card>
+        <ListRow icon="👤" title="Edit profile" trailing="›" />
+        <Divider />
+        <ListRow icon="🔒" title="Privacy & security" trailing="›" />
+        <Divider />
+        <ListRow icon="💳" title="Subscription" subtitle="Free plan" trailing="›" />
+      </Card>
+
+      {/* 🎯 Planted issue: ungrouped, wide-gap toggle rows */}
+      <SectionHeader title="Notifications" />
+      <View style={styles.badRow}>
+        <Text style={styles.badLabel}>Push notifications</Text>
         <Switch value={push} onValueChange={setPush} />
       </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Email updates</Text>
+      <View style={styles.badRow}>
+        <Text style={styles.badLabel}>Email updates</Text>
         <Switch value={email} onValueChange={setEmail} />
       </View>
-      <View style={styles.row}>
-        <Text style={styles.label}>Marketing emails</Text>
+      <View style={styles.badRow}>
+        <Text style={styles.badLabel}>Marketing emails</Text>
         <Switch value={marketing} onValueChange={setMarketing} />
       </View>
-    </View>
+
+      {/* Properly grouped preferences with the same control type */}
+      <SectionHeader title="Preferences" />
+      <Card>
+        <View style={styles.goodRow}>
+          <Text style={styles.goodLabel}>Dark mode</Text>
+          <Switch value={dark} onValueChange={setDark} />
+        </View>
+        <Divider />
+        <View style={styles.goodRow}>
+          <Text style={styles.goodLabel}>Haptic feedback</Text>
+          <Switch value={haptics} onValueChange={setHaptics} />
+        </View>
+      </Card>
+
+      <View style={styles.danger}>
+        <SecondaryButton label="Delete account" />
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, paddingTop: 60, backgroundColor: "#fff" },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 24, color: "#111" },
+  title: { fontSize: 26, fontWeight: "800", color: palette.ink, marginBottom: spacing.xs },
 
-  // Wide gap between label and switch, no card / no divider — the
-  // planted UX issue. Reviewer should call out the lack of grouping.
-  row: {
+  // 🎯 Wide gap, no card / no divider — the planted issue.
+  badRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 14,
   },
-  label: {
-    fontSize: 14,
-    color: "#222",
+  badLabel: { fontSize: 14, color: "#222" },
+
+  goodRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.sm,
   },
+  goodLabel: { fontSize: 15, fontWeight: "600", color: palette.ink },
+
+  danger: { marginTop: spacing.xl },
 });

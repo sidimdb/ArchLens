@@ -77,6 +77,14 @@ interface InspectorResult {
   hierarchy?: InspectorEntry[];
   /** Some RN versions return frame separately. */
   frame?: { left: number; top: number; width: number; height: number };
+  /**
+   * The internal fiber of the touched view (Fabric / New Architecture).
+   * We walk its `.return` chain to get the REAL visual parent tree —
+   * RN's own `hierarchy` is the *owner* tree (who wrote the JSX), which
+   * omits composition wrappers like a <Card> that only renders
+   * `children`. The return chain includes them.
+   */
+  closestInstance?: unknown;
 }
 
 /**
@@ -167,9 +175,42 @@ const HOST_NAMES = new Set([
   "RCTText",
 ]);
 
+/**
+ * Framework / library plumbing that shows up in the fiber tree but is
+ * never a meaningful UX-audit target: native host shadow views
+ * (`RCT…`), context providers, navigation/scroll internals, and the
+ * anonymous wrappers React leaves behind. We treat these as noise so
+ * they neither appear as ladder rungs nor win the name tie-breaker
+ * against a real component sharing the same box.
+ */
+const NOISE_NAMES = new Set<string>([
+  "ScrollViewContext",
+  "ScrollView", // the RN composite wrapper around RCTScrollView
+  "VirtualizedList",
+  "VirtualizedListContextProvider",
+  "EnsureSingleNavigator",
+  "StaticContainer",
+  "SceneView",
+  "DelayedFreeze",
+  "Freeze",
+  "Suspender",
+  "DebugContainer",
+  "NavigationContent",
+  "ScreenContentWrapper",
+]);
+
+function isNoiseName(name: string): boolean {
+  if (NOISE_NAMES.has(name)) return true;
+  if (/^RCT/.test(name)) return true; // native host shadow views
+  if (/^RNS/.test(name)) return true; // react-native-screens internals
+  if (/(?:Context|Provider|Consumer)$/.test(name)) return true;
+  return false;
+}
+
 function isUserComponent(entry: InspectorEntry): boolean {
   if (!entry.name) return false;
   if (HOST_NAMES.has(entry.name)) return false;
+  if (isNoiseName(entry.name)) return false;
   // Rule out anonymous function names that some libraries leave behind.
   if (entry.name === "Anonymous" || entry.name === "Component") return false;
   return true;
@@ -504,24 +545,28 @@ function isPlausibleBox(
 }
 
 /**
- * Resolve a single entry's real on-screen bounds. Prefers a fresh
- * `measure()` (page coordinates for THIS node) but only if the result
- * is plausible; then a static `frame`; then the supplied fallback
- * (which is always the known-good leaf frame). Capped at 120ms so a
- * slow or silent measure can't stall the whole probe.
+ * Resolve a single entry's real on-screen bounds, or `null` if it
+ * can't be measured reliably. Prefers a fresh `measure()` (page
+ * coordinates for THIS node) when the result is plausible, then a
+ * static `frame`. Returns null rather than a fake box so the caller
+ * can decide how to fill the gap (we inherit the child's box). Capped
+ * at 120ms so a slow or silent measure can't stall the whole probe.
+ *
+ * Composite component fibers (Card, ListRow…) frequently fail to
+ * measure on the New Architecture; their host wrapper Views measure
+ * fine. That's why we measure EVERY entry, not just the named ones.
  */
 function measureEntry(
   entry: InspectorEntry,
-  fallback: ElementBounds,
   point: { x: number; y: number },
   screen: { w: number; h: number }
-): Promise<ElementBounds> {
+): Promise<ElementBounds | null> {
   return new Promise((resolve) => {
     const { measure, frame } = resolveMeasure(entry);
     const fromFrame =
       frame && isPlausibleBox(frameToBounds(frame), point, screen)
         ? frameToBounds(frame)
-        : fallback;
+        : null;
     if (!measure) {
       resolve(fromFrame);
       return;
@@ -558,22 +603,153 @@ function sameBounds(a: ElementBounds, b: ElementBounds): boolean {
 }
 
 /**
- * When two stacked levels occupy the same rectangle, keep the deeper
- * (leaf-ward) `child` — that's the element actually under the finger
- * — but inherit the `parent`'s source file if the child has none, so
- * we don't lose the "where is this in code" info to a host wrapper.
+ * How "name-worthy" an entry is. When several stacked entries occupy
+ * the same box (e.g. a `Card` composite and its host `View`), we keep
+ * the one with the highest score so the level is labeled with the
+ * recognizable component name rather than a bare primitive.
  */
-function mergeSameBounds(
-  parent: { entry: InspectorEntry; bounds: ElementBounds },
-  child: { entry: InspectorEntry; bounds: ElementBounds }
+function nameScore(entry: InspectorEntry): number {
+  if (isUserComponent(entry) && entry.source?.fileName) return 5;
+  if (isUserComponent(entry)) return 4;
+  if (isInteractive(entry)) return 3;
+  const n = entry.name ?? "";
+  if (n === "Text" || n === "Image" || n === "ImageBackground") return 2;
+  return 1; // generic host wrapper (View, ScrollView, …)
+}
+
+/** Pick the better-named of two same-box entries, keeping any source. */
+function preferEntry(
+  a: { entry: InspectorEntry; bounds: ElementBounds },
+  b: { entry: InspectorEntry; bounds: ElementBounds }
 ): { entry: InspectorEntry; bounds: ElementBounds } {
-  if (!child.entry.source?.fileName && parent.entry.source?.fileName) {
+  const winner = nameScore(b.entry) > nameScore(a.entry) ? b : a;
+  const other = winner === a ? b : a;
+  if (!winner.entry.source?.fileName && other.entry.source?.fileName) {
     return {
-      entry: { ...child.entry, source: parent.entry.source },
-      bounds: child.bounds,
+      entry: { ...winner.entry, source: other.entry.source },
+      bounds: winner.bounds,
     };
   }
-  return child;
+  return winner;
+}
+
+// --- Real visual parent tree (fiber.return walk) ---------------------
+//
+// RN's inspector returns the OWNER hierarchy, which skips composition
+// wrappers (a <Card> that just renders {children}). Walking the touched
+// fiber's `.return` chain gives the true visual ancestry — every host
+// View and every component between the leaf and the root.
+
+/** Best-effort component / host name for a fiber. */
+function fiberName(fiber: any): string | undefined {
+  let type = fiber?.type ?? fiber?.elementType;
+  if (type == null) return undefined;
+  if (typeof type === "string") return type; // host primitive ("View"…)
+  if (typeof type === "function") {
+    return type.displayName || type.name || undefined;
+  }
+  if (typeof type === "object") {
+    // memo() / forwardRef() wrappers
+    if (type.displayName) return type.displayName;
+    const inner = type.type ?? type.render;
+    if (typeof inner === "function") {
+      return inner.displayName || inner.name || undefined;
+    }
+  }
+  return undefined;
+}
+
+/** Source file/line for a fiber, if dev source maps are present. */
+function fiberSource(
+  fiber: any
+): { fileName?: string; lineNumber?: number } | undefined {
+  const s = fiber?._debugSource ?? fiber?.memoizedProps?.__source;
+  if (s && s.fileName) {
+    return { fileName: s.fileName, lineNumber: s.lineNumber };
+  }
+  return undefined;
+}
+
+/**
+ * Find the measurable host instance for a fiber's stateNode. On the
+ * New Architecture (Fabric) the measure methods don't live on
+ * `stateNode` directly — they're on `stateNode.canonical` (or its
+ * `.publicInstance`). On the old architecture they're on `stateNode`
+ * itself. We probe all of those shapes.
+ */
+function measurableInstance(sn: any): any {
+  const candidates = [
+    sn,
+    sn?.publicInstance,
+    sn?.canonical,
+    sn?.canonical?.publicInstance,
+  ];
+  for (const c of candidates) {
+    if (
+      c &&
+      (typeof c.measureInWindow === "function" ||
+        typeof c.measure === "function")
+    ) {
+      return c;
+    }
+  }
+  return null;
+}
+
+/** A `measure` bound to the fiber's host node, when it has one. */
+function fiberMeasure(fiber: any): MeasureFn | undefined {
+  const target = measurableInstance(fiber?.stateNode);
+  if (!target) return undefined;
+  // Prefer measureInWindow — it returns window-absolute coordinates
+  // directly. Normalize both shapes to the (x, y, w, h, pageX, pageY)
+  // callback the rest of the pipeline expects.
+  if (typeof target.measureInWindow === "function") {
+    return (cb) => {
+      try {
+        target.measureInWindow((x: number, y: number, w: number, h: number) =>
+          cb(0, 0, w, h, x, y)
+        );
+      } catch {
+        /* swallow — caller treats as unmeasurable */
+      }
+    };
+  }
+  return (cb) => {
+    try {
+      target.measure(cb);
+    } catch {
+      /* swallow */
+    }
+  };
+}
+
+/**
+ * Build synthetic inspector entries (root → leaf) from the touched
+ * fiber's real parent chain. Returns null if the instance doesn't look
+ * like a fiber, so the caller can fall back to RN's owner hierarchy.
+ */
+function entriesFromFiber(instance: unknown): InspectorEntry[] | null {
+  try {
+    const start = instance as any;
+    if (!start || typeof start !== "object") return null;
+    if (!("return" in start) && !("stateNode" in start)) return null;
+
+    const leafToRoot: InspectorEntry[] = [];
+    let node: any = start;
+    let guard = 0;
+    while (node && guard++ < 400) {
+      leafToRoot.push({
+        name: fiberName(node),
+        source: fiberSource(node),
+        measure: fiberMeasure(node),
+      });
+      node = node.return;
+    }
+    if (leafToRoot.length === 0) return null;
+    return leafToRoot.reverse(); // root → leaf, to match RN's ordering
+  } catch {
+    return null;
+  }
 }
 
 async function buildHierarchyPick(
@@ -586,59 +762,73 @@ async function buildHierarchyPick(
     bestIndex: 0,
   });
 
-  const hierarchy = data.hierarchy ?? [];
-  let filtered = hierarchy.filter(isMeaningful);
-  if (filtered.length === 0 && hierarchy.length > 0) {
-    filtered = [hierarchy[hierarchy.length - 1]!];
-  }
-  if (filtered.length === 0) return single();
-
-  // Cap the ladder at the screen. The hierarchy is root → leaf, so
-  // anything BEFORE the innermost screen-like component (navigators,
-  // tab bars, providers, the root host view) is above the visible
-  // screen and not worth stepping through — drop it. The screen
-  // itself stays as the top rung.
-  let lastScreen = -1;
-  for (let i = 0; i < filtered.length; i++) {
-    if (isScreenLike(filtered[i]!)) lastScreen = i;
-  }
-  if (lastScreen > 0) filtered = filtered.slice(lastScreen);
-
-  const fallbackBounds: ElementBounds = {
-    x: x - 16,
-    y: y - 16,
-    width: 32,
-    height: 32,
-  };
-  const dataFallback =
-    data.frame && data.frame.width > 0 ? frameToBounds(data.frame) : fallbackBounds;
+  // Prefer the REAL visual parent chain (fiber.return); fall back to
+  // RN's owner hierarchy only if we couldn't get a fiber.
+  const hierarchy =
+    entriesFromFiber(data.closestInstance) ?? data.hierarchy ?? [];
+  if (hierarchy.length === 0) return single();
 
   const win = Dimensions.get("window");
   const screen = { w: win.width || 400, h: win.height || 800 };
   const point = { x, y };
+  const leafFallback: ElementBounds =
+    data.frame && data.frame.width > 0
+      ? frameToBounds(data.frame)
+      : { x: x - 16, y: y - 16, width: 32, height: 32 };
 
-  const boundsList = await Promise.all(
-    filtered.map((e) => measureEntry(e, dataFallback, point, screen))
+  // Measure EVERY entry. Host wrappers measure reliably; composite
+  // component fibers often come back null.
+  const measured = await Promise.all(
+    hierarchy.map((e) => measureEntry(e, point, screen))
   );
 
-  // Collapse consecutive levels that occupy the same rectangle — a
-  // wrapper View the same size as its child is not a distinct thing
-  // to audit, and stepping onto it would look like nothing changed.
-  const withBounds = filtered.map((entry, i) => ({
-    entry,
-    bounds: boundsList[i]!,
-  }));
+  // Resolve a box for every entry, walking leaf → root. An entry whose
+  // own measure failed inherits its rendered child's box (its immediate
+  // descendant in the chain) — a component occupies exactly the
+  // rectangle of the host node it renders, so this recovers the real
+  // bounds for unmeasurable composites like <Card> / <ListRow>.
+  const n = hierarchy.length;
+  const bounds: ElementBounds[] = new Array(n);
+  for (let i = n - 1; i >= 0; i--) {
+    if (measured[i]) bounds[i] = measured[i]!;
+    else if (i === n - 1) bounds[i] = leafFallback;
+    else bounds[i] = bounds[i + 1]!;
+  }
+
+  let items = hierarchy.map((entry, i) => ({ entry, bounds: bounds[i]! }));
+
+  // Cap the ladder at the screen. The chain is root → leaf, so anything
+  // BEFORE the innermost screen-like component (navigators, tab bars,
+  // providers, the root host view) is above the visible screen — drop
+  // it. The screen itself stays as the top rung.
+  let lastScreen = -1;
+  for (let i = 0; i < items.length; i++) {
+    if (isScreenLike(items[i]!.entry)) lastScreen = i;
+  }
+  if (lastScreen > 0) items = items.slice(lastScreen);
+
+  // Collapse consecutive levels that occupy the same rectangle, keeping
+  // the most meaningful name + source among them.
   const deduped: { entry: InspectorEntry; bounds: ElementBounds }[] = [];
-  for (const c of withBounds) {
+  for (const it of items) {
     const last = deduped[deduped.length - 1];
-    if (last && sameBounds(last.bounds, c.bounds)) {
-      deduped[deduped.length - 1] = mergeSameBounds(last, c);
+    if (last && sameBounds(last.bounds, it.bounds)) {
+      deduped[deduped.length - 1] = preferEntry(last, it);
     } else {
-      deduped.push(c);
+      deduped.push(it);
     }
   }
 
-  const rootToLeaf: ElementInfo[] = deduped.map((c) => ({
+  // Keep only levels worth auditing: user components, interactive
+  // hosts, Text / Image. Generic layout wrappers that survived de-dup
+  // as their own distinct box are dropped so every rung is something
+  // recognizable. The most-specific level (the leaf) is always kept.
+  let kept = deduped.filter(
+    (it, idx) => idx === deduped.length - 1 || isMeaningful(it.entry)
+  );
+  if (kept.length === 0) kept = deduped;
+
+  const rootToLeaf: ElementInfo[] = kept.map((c) => ({
     componentName: c.entry.name ?? "unknown",
     fileName: c.entry.source?.fileName,
     lineNumber: c.entry.source?.lineNumber,
