@@ -29,7 +29,7 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
-import { StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 import {
   ArchLensContext,
   type Annotation,
@@ -40,6 +40,8 @@ import {
   loadAnnotations,
   saveAnnotations,
   clearStoredAnnotations,
+  estimateStorageBytes,
+  STORAGE_WARN_BYTES,
 } from "../state/persistence";
 import { exportAndShareSession } from "../export/share";
 import { AnnotationOverlay } from "./AnnotationOverlay";
@@ -93,18 +95,54 @@ function DevProvider({
   const [isAnnotating, setIsAnnotating] = useState<boolean>(false);
   const [pending, setPending] = useState<PendingAnnotation | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [storageWarning, setStorageWarning] = useState<boolean>(false);
+  // Tracks whether the one-time popup has already fired, so we don't
+  // nag on every subsequent save once we're over the threshold.
+  const warnedRef = useRef<boolean>(false);
 
   // Hydrate from AsyncStorage on mount so a reviewer can resume a
   // previous session. Failures are silent — empty session is fine.
   useEffect(() => {
     let alive = true;
     void loadAnnotations().then((stored) => {
-      if (alive && stored.length > 0) setAnnotations(stored);
+      if (alive && stored.length > 0) {
+        setAnnotations(stored);
+        // Restore the warning state if a resumed session is already big.
+        if (estimateStorageBytes(stored) >= STORAGE_WARN_BYTES) {
+          setStorageWarning(true);
+          warnedRef.current = true;
+        }
+      }
     });
     return () => {
       alive = false;
     };
   }, []);
+
+  /**
+   * Recompute the storage-size warning after the annotation set
+   * changes. Sets the persistent flag (drives the session-menu
+   * reminder line) and fires a one-time popup the first time we
+   * cross the threshold.
+   */
+  const evaluateStorageWarning = useCallback(
+    (next: Annotation[]): void => {
+      const over = estimateStorageBytes(next) >= STORAGE_WARN_BYTES;
+      setStorageWarning(over);
+      if (over && !warnedRef.current) {
+        warnedRef.current = true;
+        Alert.alert(
+          "ArchLens — storage getting full",
+          "This session is approaching the device's storage limit. " +
+            "Export your annotations soon — further captures may not " +
+            "save reliably.",
+          [{ text: "OK" }]
+        );
+      }
+      if (!over) warnedRef.current = false;
+    },
+    []
+  );
 
   const toggleAnnotating = useCallback((): void => {
     setIsAnnotating((prev) => !prev);
@@ -128,25 +166,32 @@ function DevProvider({
         const next = [...prev, annotation];
         // Persist outside React's commit so we don't block render.
         void saveAnnotations(next);
+        evaluateStorageWarning(next);
         return next;
       });
       setPending(null);
     },
-    [pending]
+    [pending, evaluateStorageWarning]
   );
 
   const clearAnnotations = useCallback(async (): Promise<void> => {
     setAnnotations([]);
+    setStorageWarning(false);
+    warnedRef.current = false;
     await clearStoredAnnotations();
   }, []);
 
-  const deleteAnnotation = useCallback(async (id: string): Promise<void> => {
-    setAnnotations((prev) => {
-      const next = prev.filter((a) => a.id !== id);
-      void saveAnnotations(next);
-      return next;
-    });
-  }, []);
+  const deleteAnnotation = useCallback(
+    async (id: string): Promise<void> => {
+      setAnnotations((prev) => {
+        const next = prev.filter((a) => a.id !== id);
+        void saveAnnotations(next);
+        evaluateStorageWarning(next);
+        return next;
+      });
+    },
+    [evaluateStorageWarning]
+  );
 
   const updateAnnotationNote = useCallback(
     async (id: string, note: string): Promise<void> => {
@@ -173,6 +218,7 @@ function DevProvider({
       setPending,
       saveAnnotation,
       annotations,
+      storageWarning,
       clearAnnotations,
       deleteAnnotation,
       updateAnnotationNote,
@@ -184,6 +230,7 @@ function DevProvider({
       pending,
       saveAnnotation,
       annotations,
+      storageWarning,
       clearAnnotations,
       deleteAnnotation,
       updateAnnotationNote,

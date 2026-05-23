@@ -104,6 +104,13 @@ export interface ArchLensContextValue {
 
   /** All annotations from the current session. */
   annotations: Annotation[];
+  /**
+   * True when the session's estimated storage size is near the
+   * device limit. The session menu shows a persistent reminder line
+   * while this is set; a one-time popup also fires when it first
+   * flips true.
+   */
+  storageWarning: boolean;
   /** Wipe the entire session (for example after Export). */
   clearAnnotations: () => Promise<void>;
   /** Remove a single annotation by id. */

@@ -16,6 +16,31 @@ import type { Annotation } from "./context";
 
 const STORAGE_KEY = "archlens.runtime.annotations.v1";
 
+/**
+ * AsyncStorage is capped at roughly 6MB on Android by default. Past
+ * that, writes silently fail and annotations are lost with no error.
+ * We warn at a threshold below the real limit so the reviewer has
+ * headroom to export before any loss happens.
+ */
+export const STORAGE_WARN_BYTES = 4_500_000; // ~4.5 MB
+export const STORAGE_LIMIT_BYTES = 6_000_000; // ~6 MB (the real cap)
+
+/**
+ * Estimate the serialized byte size of a set of annotations — i.e.
+ * roughly what they occupy in AsyncStorage. The base64 screenshots
+ * dominate, so this is a close-enough estimate without serializing
+ * twice in hot paths.
+ */
+export function estimateStorageBytes(annotations: Annotation[]): number {
+  let total = 0;
+  for (const a of annotations) {
+    // Screenshot base64 is by far the largest field; each base64
+    // char is ~1 byte. Add a small constant for the other metadata.
+    total += (a.screenshotBase64?.length ?? 0) + (a.note?.length ?? 0) + 300;
+  }
+  return total;
+}
+
 interface AsyncStorageLike {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;

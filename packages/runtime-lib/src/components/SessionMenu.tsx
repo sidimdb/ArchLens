@@ -31,6 +31,7 @@ export function SessionMenu(): React.ReactElement | null {
   const {
     annotations,
     isAnnotating,
+    storageWarning,
     exportSession,
     clearAnnotations,
     deleteAnnotation,
@@ -136,6 +137,15 @@ export function SessionMenu(): React.ReactElement | null {
               {annotations.length === 1 ? "" : "s"} captured · tap a note to
               edit
             </Text>
+
+            {storageWarning ? (
+              <View style={styles.warnBanner}>
+                <Text style={styles.warnText}>
+                  ⚠ Storage is getting full — export soon. Further captures
+                  may not save reliably on some devices.
+                </Text>
+              </View>
+            ) : null}
 
             {/* Annotation list */}
             <ScrollView
@@ -288,6 +298,17 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 20, fontWeight: "700", color: "#111" },
   sheetSub: { fontSize: 13, color: "#666", marginTop: 4, marginBottom: 12 },
+
+  warnBanner: {
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  warnText: { fontSize: 12, color: "#92610b", lineHeight: 17 },
 
   list: { maxHeight: 340, marginBottom: 12 },
   row: {

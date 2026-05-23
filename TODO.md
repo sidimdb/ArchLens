@@ -55,9 +55,12 @@ they would notice. None of them are optional polish.
 
 These improve robustness or user experience but are not deal-breakers.
 
-- [ ] **AsyncStorage size monitoring** — warn the reviewer when the
-  session is approaching Android's ~6MB AsyncStorage limit. Beyond
-  that, data is silently dropped. **~30 min.**
+- [x] **AsyncStorage size monitoring** — the provider estimates the
+  session's stored byte size after each save/delete. When it crosses
+  ~4.5MB (under Android's ~6MB cap) it fires a one-time popup
+  ("export soon") and sets a `storageWarning` flag that drives a
+  persistent amber reminder banner in the session menu. Resets on
+  Clear; restored on resume if a loaded session is already large.
 
 - [ ] **Confidence downgrading explanation in the report UI** — when
   a rule shows "LOW CONFIDENCE", the UI should explain why
