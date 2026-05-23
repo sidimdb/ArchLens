@@ -54,13 +54,26 @@ export interface ArchLensProviderProps {
    * Defaults to "Untitled project" if omitted.
    */
   projectName?: string;
+  /**
+   * Force ArchLens off even in development. By default the tool is
+   * active whenever `__DEV__` is true and hidden in production. Some
+   * teams ship a "staging" / "preview" build that is technically a
+   * dev build (`__DEV__ === true`) but should look like a release —
+   * set `disabled` for those so the floating button never appears.
+   *
+   * Defaults to false (active in dev). Often wired to an env flag,
+   * e.g. `disabled={process.env.APP_ENV === "staging"}`.
+   */
+  disabled?: boolean;
 }
 
 export function ArchLensProvider({
   children,
   projectName,
+  disabled = false,
 }: ArchLensProviderProps): React.ReactElement {
-  if (!__DEV__) {
+  // Active only in dev builds, and only when not explicitly disabled.
+  if (!__DEV__ || disabled) {
     return <>{children}</>;
   }
   return <DevProvider projectName={projectName}>{children}</DevProvider>;

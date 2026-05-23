@@ -72,10 +72,12 @@ These improve robustness or user experience but are not deal-breakers.
   accordingly without renumbering — skipped issues are `no-after`.
   Documented in the verify README.
 
-- [ ] **Production-build no-op opt-out for the runtime library** — add
-  an explicit `disabled` prop on `<ArchLensProvider>` in addition
-  to the `__DEV__` check. Defends against staging builds where
-  `__DEV__` is still true. **~15 min.**
+- [x] **Production-build no-op opt-out for the runtime library** —
+  `<ArchLensProvider>` now accepts a `disabled` prop. ArchLens is
+  active only when `__DEV__` is true AND `disabled` is not set, so a
+  dev-mode staging build can force it off (e.g.
+  `disabled={process.env.APP_ENV === "staging"}`). Defaults to
+  active in dev — current behavior unchanged.
 
 - [ ] **Sample-projects smoke test before defense** — manually run
   the analyzer against `tests/good-app`, `tests/bad-app`, and

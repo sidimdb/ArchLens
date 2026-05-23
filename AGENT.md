@@ -149,8 +149,9 @@ fallback paths (returns `componentName: "unknown"` if the API isn't
 available) and dev-mode warnings.
 
 **Production builds must remain a no-op.** `<ArchLensProvider>`
-returns `<>{children}</>` when `__DEV__` is false. Do not break this
-contract.
+returns `<>{children}</>` when `__DEV__` is false OR when the
+`disabled` prop is set. The `disabled` prop is an explicit opt-out
+for dev-mode "staging" builds. Do not break this contract.
 
 ---
 
