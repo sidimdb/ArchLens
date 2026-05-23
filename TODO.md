@@ -62,10 +62,12 @@ These improve robustness or user experience but are not deal-breakers.
   persistent amber reminder banner in the session menu. Resets on
   Clear; restored on resume if a loaded session is already large.
 
-- [ ] **Confidence downgrading explanation in the report UI** — when
-  a rule shows "LOW CONFIDENCE", the UI should explain why
-  (e.g. *"30% of analyzed files could not be confidently classified
-  by layer"*). Currently it's a black-box badge. **~30 min.**
+- [x] **Confidence downgrading explanation in the report UI** — when
+  a rule's confidence is medium/low, `RuleCard` now shows a short
+  italic line (with an info icon) explaining why, derived from the
+  project's classification stats (e.g. *"42% of files couldn't be
+  classified into a layer, so this rule's result is less reliable"*).
+  High-confidence rules show no extra line.
 
 - [x] **Verify CLI matches after-screenshots by issue ID or index** —
   `findAfterScreenshot` now scans the after folder and matches by

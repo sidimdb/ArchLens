@@ -138,6 +138,7 @@ export default function ReportPage({ data, onNewAnalysis }) {
             <RuleCard
               key={r.ruleId}
               rule={r}
+              classificationStats={report.project.classificationStats}
               onViolationClick={({ violation }) =>
                 setActiveViolation({ rule: r, violation })
               }

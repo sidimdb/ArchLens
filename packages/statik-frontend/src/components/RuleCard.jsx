@@ -22,8 +22,34 @@ const STATUS = {
   },
 };
 
-export default function RuleCard({ rule, onViolationClick }) {
+// Builds a short, human explanation of why a rule's confidence is
+// less than "high". Confidence is the lower of the rule's own
+// certainty and how confidently the analyzer could classify the
+// files it looked at — so the dominant, explainable cause is
+// classification uncertainty. Returns null for high confidence.
+function confidenceReason(confidence, stats) {
+  if (!confidence || confidence === 'high') return null;
+  if (!stats) {
+    return 'Some inputs were ambiguous, so this result is less certain.';
+  }
+  const byConf = stats.byConfidence || {};
+  const total =
+    (byConf.high || 0) + (byConf.medium || 0) + (byConf.low || 0);
+  const unknownPct = Math.round((stats.unknownRatio || 0) * 100);
+  const lowPct = total > 0 ? Math.round(((byConf.low || 0) / total) * 100) : 0;
+
+  if (unknownPct >= 20) {
+    return `${unknownPct}% of files couldn't be classified into a layer, so this rule's result is less reliable.`;
+  }
+  if (lowPct > 0) {
+    return `${lowPct}% of files were classified with low confidence, so this rule's result is less reliable.`;
+  }
+  return 'Some files were classified with reduced confidence, so this result is less certain.';
+}
+
+export default function RuleCard({ rule, onViolationClick, classificationStats }) {
   const s = STATUS[rule.status] || STATUS.not_applicable;
+  const confReason = confidenceReason(rule.confidence, classificationStats);
 
   return (
     <div
@@ -62,6 +88,13 @@ export default function RuleCard({ rule, onViolationClick }) {
             </span>
             <span className="flex-1 min-w-0">{rule.description}</span>
           </div>
+
+          {confReason && (
+            <p className="text-mono-label text-on-surface-variant italic leading-snug mb-2 flex items-start gap-1">
+              <Icon name="info" className="text-[13px] flex-shrink-0 mt-px" />
+              <span>{confReason}</span>
+            </p>
+          )}
 
           {rule.explanation && (
             <p className="text-body-sm text-on-surface-variant leading-snug mb-2">
