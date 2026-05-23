@@ -1,8 +1,8 @@
-\# AI-Powered UX/UI Auto-Fix System — Architecture Options
+# AI-Powered UX/UI Auto-Fix System — Architecture Options
 
 
 
-\## Project Context
+## Project Context
 
 
 
@@ -10,11 +10,11 @@ Current system:
 
 
 
-\* Mobile UX/UI audit tool
+* Mobile UX/UI audit tool
 
-\* Generates audit report after analyzing application screens
+* Generates audit report after analyzing application screens
 
-\* User can review detected UX/UI issues
+* User can review detected UX/UI issues
 
 
 
@@ -22,13 +22,13 @@ Requested extension:
 
 
 
-\* Add an AI-powered fixing system
+* Add an AI-powered fixing system
 
-\* User presses a "Send" or "Auto Fix" button
+* User presses a "Send" or "Auto Fix" button
 
-\* System automatically improves the UI
+* System automatically improves the UI
 
-\* Updated UI is delivered back to the application without requiring manual coding
+* Updated UI is delivered back to the application without requiring manual coding
 
 
 
@@ -36,31 +36,31 @@ The following document explains the 3 possible architectures for implementing th
 
 
 
-\* how each architecture works
+* how each architecture works
 
-\* communication flow
+* communication flow
 
-\* advantages
+* advantages
 
-\* disadvantages
+* disadvantages
 
-\* technical complexity
+* technical complexity
 
-\* scalability
+* scalability
 
-\* recommended use cases
-
-
-
-\---
+* recommended use cases
 
 
 
-\# Option 1 — Dynamic Configuration / Theme-Based System
+---
 
 
 
-\## Overview
+# Option 1 — Dynamic Configuration / Theme-Based System
+
+
+
+## Overview
 
 
 
@@ -72,11 +72,11 @@ Instead:
 
 
 
-\* the application is designed to read UI values dynamically from a backend configuration system
+* the application is designed to read UI values dynamically from a backend configuration system
 
-\* the AI modifies configuration values
+* the AI modifies configuration values
 
-\* the application updates itself automatically at runtime
+* the application updates itself automatically at runtime
 
 
 
@@ -84,35 +84,35 @@ Examples of dynamic values:
 
 
 
-\* colors
+* colors
 
-\* spacing
+* spacing
 
-\* typography
+* typography
 
-\* font sizes
+* font sizes
 
-\* button radius
+* button radius
 
-\* visibility
+* visibility
 
-\* layout parameters
+* layout parameters
 
-\* text labels
+* text labels
 
-\* accessibility settings
-
-
-
-\---
+* accessibility settings
 
 
 
-\# How It Works
+---
 
 
 
-\## Example Architecture
+# How It Works
+
+
+
+## Example Architecture
 
 
 
@@ -148,15 +148,15 @@ UI updates instantly
 
 
 
-\---
+---
 
 
 
-\# Example
+# Example
 
 
 
-\## Source code
+## Source code
 
 
 
@@ -168,7 +168,7 @@ UI updates instantly
 
 
 
-\## Dynamic configuration stored on backend
+## Dynamic configuration stored on backend
 
 
 
@@ -184,7 +184,7 @@ UI updates instantly
 
 
 
-\## AI changes backend config
+## AI changes backend config
 
 
 
@@ -204,17 +204,17 @@ Result:
 
 
 
-\* all users automatically receive red button
+* all users automatically receive red button
 
-\* source code remains unchanged
-
-
-
-\---
+* source code remains unchanged
 
 
 
-\# Communication Flow
+---
+
+
+
+# Communication Flow
 
 
 
@@ -226,15 +226,15 @@ App → AI Backend → Config Database → App Fetches Config → UI Updates
 
 
 
-\---
+---
 
 
 
-\# Advantages
+# Advantages
 
 
 
-\## 1. Very Safe
+## 1. Very Safe
 
 
 
@@ -246,21 +246,21 @@ Lower risk of:
 
 
 
-\* application crashes
+* application crashes
 
-\* syntax errors
+* syntax errors
 
-\* broken navigation
+* broken navigation
 
-\* broken business logic
-
-
-
-\---
+* broken business logic
 
 
 
-\## 2. Fast Updates
+---
+
+
+
+## 2. Fast Updates
 
 
 
@@ -272,19 +272,19 @@ Usually:
 
 
 
-\* no rebuild
+* no rebuild
 
-\* no reinstall
+* no reinstall
 
-\* sometimes no reload required
-
-
-
-\---
+* sometimes no reload required
 
 
 
-\## 3. No Source-Code Access Required
+---
+
+
+
+## 3. No Source-Code Access Required
 
 
 
@@ -292,19 +292,19 @@ The backend does not need:
 
 
 
-\* GitHub repository access
+* GitHub repository access
 
-\* file parsing
+* file parsing
 
-\* code rewriting
-
-
-
-\---
+* code rewriting
 
 
 
-\## 4. Excellent Scalability
+---
+
+
+
+## 4. Excellent Scalability
 
 
 
@@ -312,21 +312,21 @@ Ideal for:
 
 
 
-\* A/B testing
+* A/B testing
 
-\* personalization
+* personalization
 
-\* live UX optimization
+* live UX optimization
 
-\* enterprise scaling
-
-
-
-\---
+* enterprise scaling
 
 
 
-\## 5. Lower Infrastructure Complexity
+---
+
+
+
+## 5. Lower Infrastructure Complexity
 
 
 
@@ -334,19 +334,19 @@ No need for:
 
 
 
-\* advanced CI/CD pipelines
+* advanced CI/CD pipelines
 
-\* AST parsing systems
+* AST parsing systems
 
-\* automated Git workflows
-
-
-
-\---
+* automated Git workflows
 
 
 
-\## 6. Easier Rollback
+---
+
+
+
+## 6. Easier Rollback
 
 
 
@@ -354,19 +354,19 @@ If AI generates bad UI:
 
 
 
-\* revert configuration values instantly
+* revert configuration values instantly
 
 
 
-\---
+---
 
 
 
-\# Disadvantages
+# Disadvantages
 
 
 
-\## 1. Requires Dynamic Architecture Preparation
+## 1. Requires Dynamic Architecture Preparation
 
 
 
@@ -402,11 +402,11 @@ BAD:
 
 
 
-\---
+---
 
 
 
-\## 2. Limited Flexibility
+## 2. Limited Flexibility
 
 
 
@@ -414,21 +414,21 @@ Cannot easily perform:
 
 
 
-\* major screen redesigns
+* major screen redesigns
 
-\* new component creation
+* new component creation
 
-\* deep logic rewrites
+* deep logic rewrites
 
-\* native SDK modifications
-
-
-
-\---
+* native SDK modifications
 
 
 
-\## 3. Requires Strong Design System
+---
+
+
+
+## 3. Requires Strong Design System
 
 
 
@@ -436,21 +436,21 @@ Best results require:
 
 
 
-\* reusable components
+* reusable components
 
-\* centralized themes
+* centralized themes
 
-\* design tokens
+* design tokens
 
-\* configuration-driven UI
-
-
-
-\---
+* configuration-driven UI
 
 
 
-\# Best Use Cases
+---
+
+
+
+# Best Use Cases
 
 
 
@@ -458,29 +458,29 @@ Ideal for:
 
 
 
-\* UX optimization
+* UX optimization
 
-\* accessibility improvements
+* accessibility improvements
 
-\* visual consistency
+* visual consistency
 
-\* color tuning
+* color tuning
 
-\* spacing/layout tuning
+* spacing/layout tuning
 
-\* typography improvements
+* typography improvements
 
-\* feature flags
+* feature flags
 
-\* live UI experiments
-
-
-
-\---
+* live UI experiments
 
 
 
-\# Technical Complexity
+---
+
+
+
+# Technical Complexity
 
 
 
@@ -488,23 +488,23 @@ Level: LOW → MEDIUM
 
 
 
-\---
+---
 
 
 
-\# Recommended Technologies
+# Recommended Technologies
 
 
 
-\* Firebase Remote Config
+* Firebase Remote Config
 
-\* Supabase
+* Supabase
 
-\* JSON configuration service
+* JSON configuration service
 
-\* React Native theme system
+* React Native theme system
 
-\* Design token architecture
+* Design token architecture
 
 
 
@@ -512,21 +512,21 @@ Official Resources:
 
 
 
-\* \[https://firebase.google.com/products/remote-config](https://firebase.google.com/products/remote-config)
+* [https://firebase.google.com/products/remote-config](https://firebase.google.com/products/remote-config)
 
-\* \[https://supabase.com](https://supabase.com)
-
-
-
-\---
+* [https://supabase.com](https://supabase.com)
 
 
 
-\# Option 2 — OTA (Over-the-Air) Source-Code Updates
+---
 
 
 
-\## Overview
+# Option 2 — OTA (Over-the-Air) Source-Code Updates
+
+
+
+## Overview
 
 
 
@@ -538,13 +538,13 @@ The AI backend:
 
 
 
-\* accesses project repository
+* accesses project repository
 
-\* edits source files
+* edits source files
 
-\* generates OTA update
+* generates OTA update
 
-\* application downloads update inside the app
+* application downloads update inside the app
 
 
 
@@ -552,15 +552,15 @@ No App Store reinstall is required.
 
 
 
-\---
+---
 
 
 
-\# How It Works
+# How It Works
 
 
 
-\## Example Architecture
+## Example Architecture
 
 
 
@@ -600,15 +600,15 @@ UI changes applied
 
 
 
-\---
+---
 
 
 
-\# Example
+# Example
 
 
 
-\## Before
+## Before
 
 
 
@@ -620,7 +620,7 @@ UI changes applied
 
 
 
-\## After AI modification
+## After AI modification
 
 
 
@@ -632,11 +632,11 @@ UI changes applied
 
 
 
-\---
+---
 
 
 
-\# Communication Flow
+# Communication Flow
 
 
 
@@ -648,15 +648,15 @@ App → AI Backend → Git Repository → OTA Build → App Downloads Update
 
 
 
-\---
+---
 
 
 
-\# Advantages
+# Advantages
 
 
 
-\## 1. Much More Powerful
+## 1. Much More Powerful
 
 
 
@@ -664,23 +664,23 @@ Can perform:
 
 
 
-\* structural UI changes
+* structural UI changes
 
-\* component restructuring
+* component restructuring
 
-\* interaction logic updates
+* interaction logic updates
 
-\* screen layout redesigns
+* screen layout redesigns
 
-\* advanced UX refactoring
-
-
-
-\---
+* advanced UX refactoring
 
 
 
-\## 2. Permanent Source-Code Changes
+---
+
+
+
+## 2. Permanent Source-Code Changes
 
 
 
@@ -688,11 +688,11 @@ Changes become part of actual project source code.
 
 
 
-\---
+---
 
 
 
-\## 3. No Full Reinstall Required
+## 3. No Full Reinstall Required
 
 
 
@@ -700,17 +700,17 @@ Using Expo EAS Update:
 
 
 
-\* users stay inside app
+* users stay inside app
 
-\* updates download automatically
-
-
-
-\---
+* updates download automatically
 
 
 
-\## 4. Supports Advanced UX Improvements
+---
+
+
+
+## 4. Supports Advanced UX Improvements
 
 
 
@@ -718,25 +718,25 @@ Can handle:
 
 
 
-\* navigation flow changes
+* navigation flow changes
 
-\* onboarding restructuring
+* onboarding restructuring
 
-\* logic improvements
+* logic improvements
 
-\* advanced accessibility updates
-
-
-
-\---
+* advanced accessibility updates
 
 
 
-\# Disadvantages
+---
 
 
 
-\## 1. Higher Risk
+# Disadvantages
+
+
+
+## 1. Higher Risk
 
 
 
@@ -748,23 +748,23 @@ Possible risks:
 
 
 
-\* syntax errors
+* syntax errors
 
-\* broken components
+* broken components
 
-\* app crashes
+* app crashes
 
-\* invalid imports
+* invalid imports
 
-\* broken state logic
-
-
-
-\---
+* broken state logic
 
 
 
-\## 2. Requires Source-Code Access
+---
+
+
+
+## 2. Requires Source-Code Access
 
 
 
@@ -772,21 +772,21 @@ Backend must access:
 
 
 
-\* GitHub/GitLab repository
+* GitHub/GitLab repository
 
-\* project files
+* project files
 
-\* branches
+* branches
 
-\* build pipeline
-
-
-
-\---
+* build pipeline
 
 
 
-\## 3. Higher Infrastructure Complexity
+---
+
+
+
+## 3. Higher Infrastructure Complexity
 
 
 
@@ -794,23 +794,23 @@ Requires:
 
 
 
-\* CI/CD pipeline
+* CI/CD pipeline
 
-\* repository synchronization
+* repository synchronization
 
-\* Git operations
+* Git operations
 
-\* OTA deployment management
+* OTA deployment management
 
-\* rollback strategy
-
-
-
-\---
+* rollback strategy
 
 
 
-\## 4. Slower Than Dynamic Config
+---
+
+
+
+## 4. Slower Than Dynamic Config
 
 
 
@@ -818,19 +818,19 @@ OTA requires:
 
 
 
-\* update generation
+* update generation
 
-\* bundle publishing
+* bundle publishing
 
-\* application reload
-
-
-
-\---
+* application reload
 
 
 
-\## 5. Requires Validation Layer
+---
+
+
+
+## 5. Requires Validation Layer
 
 
 
@@ -838,11 +838,11 @@ Production systems usually require:
 
 
 
-\* automated testing
+* automated testing
 
-\* AI validation
+* AI validation
 
-\* human approval
+* human approval
 
 
 
@@ -850,11 +850,11 @@ before deployment.
 
 
 
-\---
+---
 
 
 
-\# Important Limitation
+# Important Limitation
 
 
 
@@ -862,13 +862,13 @@ OTA updates can modify:
 
 
 
-\* React Native code
+* React Native code
 
-\* JavaScript logic
+* JavaScript logic
 
-\* UI components
+* UI components
 
-\* styles
+* styles
 
 
 
@@ -876,19 +876,19 @@ BUT CANNOT modify:
 
 
 
-\* native Android/iOS code
+* native Android/iOS code
 
-\* native SDK installations
+* native SDK installations
 
-\* native dependencies
-
-
-
-\---
+* native dependencies
 
 
 
-\# Best Use Cases
+---
+
+
+
+# Best Use Cases
 
 
 
@@ -896,23 +896,23 @@ Ideal for:
 
 
 
-\* advanced UI restructuring
+* advanced UI restructuring
 
-\* interaction redesign
+* interaction redesign
 
-\* screen refactoring
+* screen refactoring
 
-\* React Native component changes
+* React Native component changes
 
-\* medium-to-large UX improvements
-
-
-
-\---
+* medium-to-large UX improvements
 
 
 
-\# Technical Complexity
+---
+
+
+
+# Technical Complexity
 
 
 
@@ -920,27 +920,27 @@ Level: HIGH
 
 
 
-\---
+---
 
 
 
-\# Recommended Technologies
+# Recommended Technologies
 
 
 
-\* Expo EAS Update
+* Expo EAS Update
 
-\* GitHub API
+* GitHub API
 
-\* GitLab API
+* GitLab API
 
-\* Node.js backend
+* Node.js backend
 
-\* FastAPI backend
+* FastAPI backend
 
-\* OpenAI API
+* OpenAI API
 
-\* AST parsers
+* AST parsers
 
 
 
@@ -948,23 +948,23 @@ Official Resources:
 
 
 
-\* \[https://docs.expo.dev/eas-update/introduction/](https://docs.expo.dev/eas-update/introduction/)
+* [https://docs.expo.dev/eas-update/introduction/](https://docs.expo.dev/eas-update/introduction/)
 
-\* \[https://platform.openai.com](https://platform.openai.com)
+* [https://platform.openai.com](https://platform.openai.com)
 
-\* \[https://github.com](https://github.com)
-
-
-
-\---
+* [https://github.com](https://github.com)
 
 
 
-\# Option 3 — Native Rebuild / Full Application Build System
+---
 
 
 
-\## Overview
+# Option 3 — Native Rebuild / Full Application Build System
+
+
+
+## Overview
 
 
 
@@ -976,11 +976,11 @@ The system edits:
 
 
 
-\* Android native code
+* Android native code
 
-\* iOS native code
+* iOS native code
 
-\* native SDK integrations
+* native SDK integrations
 
 
 
@@ -988,23 +988,23 @@ Then generates:
 
 
 
-\* new APK
+* new APK
 
-\* new IPA
+* new IPA
 
-\* full application rebuild
-
-
-
-\---
+* full application rebuild
 
 
 
-\# How It Works
+---
 
 
 
-\## Example Architecture
+# How It Works
+
+
+
+## Example Architecture
 
 
 
@@ -1040,11 +1040,11 @@ User installs new application version
 
 
 
-\---
+---
 
 
 
-\# Communication Flow
+# Communication Flow
 
 
 
@@ -1056,15 +1056,15 @@ App → AI Backend → Native Build Pipeline → New APK/IPA → User Installs
 
 
 
-\---
+---
 
 
 
-\# Advantages
+# Advantages
 
 
 
-\## 1. Maximum Flexibility
+## 1. Maximum Flexibility
 
 
 
@@ -1072,21 +1072,21 @@ Can modify:
 
 
 
-\* Android native code
+* Android native code
 
-\* iOS native code
+* iOS native code
 
-\* native SDKs
+* native SDKs
 
-\* low-level platform functionality
-
-
-
-\---
+* low-level platform functionality
 
 
 
-\## 2. No OTA Limitations
+---
+
+
+
+## 2. No OTA Limitations
 
 
 
@@ -1094,11 +1094,11 @@ Can perform changes impossible through OTA.
 
 
 
-\---
+---
 
 
 
-\## 3. Full System Control
+## 3. Full System Control
 
 
 
@@ -1106,45 +1106,23 @@ Complete access to:
 
 
 
-\* native platform features
+* native platform features
 
-\* deep integrations
+* deep integrations
 
-\* operating-system-level functionality
-
-
-
-\---
+* operating-system-level functionality
 
 
 
-\# Disadvantages
+---
 
 
 
-\## 1. Extremely Complex
+# Disadvantages
 
 
 
-Requires:
-
-
-
-\* Android/iOS engineering
-
-\* build infrastructure
-
-\* signing pipelines
-
-\* deployment management
-
-
-
-\---
-
-
-
-\## 2. Slowest Workflow
+## 1. Extremely Complex
 
 
 
@@ -1152,19 +1130,41 @@ Requires:
 
 
 
-\* rebuilding app
+* Android/iOS engineering
 
-\* generating binaries
+* build infrastructure
 
-\* reinstalling app versions
+* signing pipelines
 
-
-
-\---
+* deployment management
 
 
 
-\## 3. Highest Risk
+---
+
+
+
+## 2. Slowest Workflow
+
+
+
+Requires:
+
+
+
+* rebuilding app
+
+* generating binaries
+
+* reinstalling app versions
+
+
+
+---
+
+
+
+## 3. Highest Risk
 
 
 
@@ -1176,21 +1176,21 @@ Possible risks:
 
 
 
-\* app instability
+* app instability
 
-\* platform crashes
+* platform crashes
 
-\* build failures
+* build failures
 
-\* security issues
-
-
-
-\---
+* security issues
 
 
 
-\## 4. Usually Unnecessary for UX Audits
+---
+
+
+
+## 4. Usually Unnecessary for UX Audits
 
 
 
@@ -1198,11 +1198,11 @@ Most UX/UI audit improvements do NOT require native code changes.
 
 
 
-\---
+---
 
 
 
-\## 5. Difficult Continuous Deployment
+## 5. Difficult Continuous Deployment
 
 
 
@@ -1210,19 +1210,19 @@ Requires:
 
 
 
-\* App Store/TestFlight deployment
+* App Store/TestFlight deployment
 
-\* enterprise distribution
+* enterprise distribution
 
-\* APK management
-
-
-
-\---
+* APK management
 
 
 
-\# Best Use Cases
+---
+
+
+
+# Best Use Cases
 
 
 
@@ -1230,21 +1230,21 @@ Only recommended for:
 
 
 
-\* native SDK integration
+* native SDK integration
 
-\* deep platform features
+* deep platform features
 
-\* hardware integrations
+* hardware integrations
 
-\* advanced mobile engineering changes
-
-
-
-\---
+* advanced mobile engineering changes
 
 
 
-\# Technical Complexity
+---
+
+
+
+# Technical Complexity
 
 
 
@@ -1252,23 +1252,23 @@ Level: VERY HIGH
 
 
 
-\---
+---
 
 
 
-\# Recommended Technologies
+# Recommended Technologies
 
 
 
-\* Expo EAS Build
+* Expo EAS Build
 
-\* Android Studio
+* Android Studio
 
-\* Xcode
+* Xcode
 
-\* Fastlane
+* Fastlane
 
-\* GitHub Actions
+* GitHub Actions
 
 
 
@@ -1276,23 +1276,23 @@ Official Resources:
 
 
 
-\* \[https://docs.expo.dev/build/introduction/](https://docs.expo.dev/build/introduction/)
+* [https://docs.expo.dev/build/introduction/](https://docs.expo.dev/build/introduction/)
 
-\* \[https://developer.android.com/studio](https://developer.android.com/studio)
+* [https://developer.android.com/studio](https://developer.android.com/studio)
 
-\* \[https://developer.apple.com/xcode/](https://developer.apple.com/xcode/)
-
-
-
-\---
+* [https://developer.apple.com/xcode/](https://developer.apple.com/xcode/)
 
 
 
-\# Recommended Hybrid Architecture
+---
 
 
 
-\## Recommended Professional Strategy
+# Recommended Hybrid Architecture
+
+
+
+## Recommended Professional Strategy
 
 
 
@@ -1312,51 +1312,15 @@ The best practical architecture is a hybrid system combining:
 
 
 
-\---
+---
 
 
 
-\# Recommended Distribution of Responsibilities
+# Recommended Distribution of Responsibilities
 
 
 
-\## Dynamic Layer (Primary)
-
-
-
-Handles:
-
-
-
-\* colors
-
-\* typography
-
-\* spacing
-
-\* accessibility
-
-\* feature flags
-
-\* UI tuning
-
-\* layout parameters
-
-
-
-Estimated usage:
-
-
-
-\* 70–90% of UX audit fixes
-
-
-
-\---
-
-
-
-\## OTA Layer (Secondary)
+## Dynamic Layer (Primary)
 
 
 
@@ -1364,13 +1328,19 @@ Handles:
 
 
 
-\* larger UI restructuring
+* colors
 
-\* React component changes
+* typography
 
-\* interaction flow improvements
+* spacing
 
-\* advanced UX redesigns
+* accessibility
+
+* feature flags
+
+* UI tuning
+
+* layout parameters
 
 
 
@@ -1378,15 +1348,15 @@ Estimated usage:
 
 
 
-\* 10–30% of UX audit fixes
+* 70–90% of UX audit fixes
 
 
 
-\---
+---
 
 
 
-\## Native Layer (Rare)
+## OTA Layer (Secondary)
 
 
 
@@ -1394,11 +1364,13 @@ Handles:
 
 
 
-\* native SDK changes
+* larger UI restructuring
 
-\* hardware integrations
+* React component changes
 
-\* platform-level modifications
+* interaction flow improvements
+
+* advanced UX redesigns
 
 
 
@@ -1406,15 +1378,43 @@ Estimated usage:
 
 
 
-\* very rare in UX audit systems
+* 10–30% of UX audit fixes
 
 
 
-\---
+---
 
 
 
-\# Final Recommendation
+## Native Layer (Rare)
+
+
+
+Handles:
+
+
+
+* native SDK changes
+
+* hardware integrations
+
+* platform-level modifications
+
+
+
+Estimated usage:
+
+
+
+* very rare in UX audit systems
+
+
+
+---
+
+
+
+# Final Recommendation
 
 
 
@@ -1426,11 +1426,11 @@ Recommended architecture:
 
 
 
-1\. Dynamic Config System as primary optimization engine
+1. Dynamic Config System as primary optimization engine
 
-2\. OTA Updates for advanced React Native changes
+2. OTA Updates for advanced React Native changes
 
-3\. Native rebuilds only when absolutely necessary
+3. Native rebuilds only when absolutely necessary
 
 
 
@@ -1438,25 +1438,25 @@ Reasoning:
 
 
 
-\* safest architecture
+* safest architecture
 
-\* fastest deployment
+* fastest deployment
 
-\* easiest scaling
+* easiest scaling
 
-\* best user experience
+* best user experience
 
-\* lower operational risk
+* lower operational risk
 
-\* aligns with modern enterprise mobile architecture
-
-
-
-\---
+* aligns with modern enterprise mobile architecture
 
 
 
-\# Conclusion
+---
+
+
+
+# Conclusion
 
 
 
@@ -1468,17 +1468,17 @@ However, architecture choice significantly affects:
 
 
 
-\* safety
+* safety
 
-\* scalability
+* scalability
 
-\* infrastructure complexity
+* infrastructure complexity
 
-\* deployment speed
+* deployment speed
 
-\* maintenance cost
+* maintenance cost
 
-\* production stability
+* production stability
 
 
 
@@ -1486,13 +1486,13 @@ The Dynamic + OTA hybrid approach appears to provide the best balance between:
 
 
 
-\* automation power
+* automation power
 
-\* engineering safety
+* engineering safety
 
-\* enterprise scalability
+* enterprise scalability
 
-\* realistic implementation complexity.
+* realistic implementation complexity.
 
 
 
