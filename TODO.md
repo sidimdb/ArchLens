@@ -84,6 +84,13 @@ These improve robustness or user experience but are not deal-breakers.
   `disabled={process.env.APP_ENV === "staging"}`). Defaults to
   active in dev — current behavior unchanged.
 
+- [x] **Unit tests for all 8 statik rules** — added
+  `rule2/3/6/7/8` test files under `packages/statik-backend/test/`
+  (rules 1, 4, 5 were already covered). Each builds Project fixtures
+  via the `makeProject`/`makeFile` helpers and asserts on status,
+  violation count, severity, and score. `npm run test:statik` now
+  runs **32 tests across 8 suites, all passing.**
+
 - [x] **Sample-projects smoke test + fixture refresh** — ran the
   analyzer on all three test projects against the current 8-rule
   set. Found the fixtures predated the rule changes: good-app
