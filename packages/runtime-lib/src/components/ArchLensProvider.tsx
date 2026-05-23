@@ -34,7 +34,6 @@ import {
   ArchLensContext,
   type Annotation,
   type ArchLensContextValue,
-  type ElementBounds,
   type PendingAnnotation,
 } from "../state/context";
 import {
@@ -99,18 +98,14 @@ function DevProvider({
   }, []);
 
   const saveAnnotation = useCallback(
-    async (note: string, boundsOverride?: ElementBounds): Promise<void> => {
+    async (note: string): Promise<void> => {
       if (!pending) return;
-
-      const element = boundsOverride
-        ? { ...pending.element, bounds: boundsOverride }
-        : pending.element;
 
       const annotation: Annotation = {
         id: pending.id,
         capturedAt: pending.capturedAt,
         note,
-        element,
+        element: pending.element,
         screenshotBase64: pending.screenshotBase64,
         screenName: pending.screenName,
         screenDimensions: pending.screenDimensions,
@@ -132,6 +127,25 @@ function DevProvider({
     await clearStoredAnnotations();
   }, []);
 
+  const deleteAnnotation = useCallback(async (id: string): Promise<void> => {
+    setAnnotations((prev) => {
+      const next = prev.filter((a) => a.id !== id);
+      void saveAnnotations(next);
+      return next;
+    });
+  }, []);
+
+  const updateAnnotationNote = useCallback(
+    async (id: string, note: string): Promise<void> => {
+      setAnnotations((prev) => {
+        const next = prev.map((a) => (a.id === id ? { ...a, note } : a));
+        void saveAnnotations(next);
+        return next;
+      });
+    },
+    []
+  );
+
   const exportSession = useCallback(async (): Promise<void> => {
     await exportAndShareSession(annotations, {
       projectName: projectName ?? "Untitled project",
@@ -147,6 +161,8 @@ function DevProvider({
       saveAnnotation,
       annotations,
       clearAnnotations,
+      deleteAnnotation,
+      updateAnnotationNote,
       exportSession,
     }),
     [
@@ -156,6 +172,8 @@ function DevProvider({
       saveAnnotation,
       annotations,
       clearAnnotations,
+      deleteAnnotation,
+      updateAnnotationNote,
       exportSession,
     ]
   );

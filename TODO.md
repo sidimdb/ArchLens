@@ -29,10 +29,12 @@ they would notice. None of them are optional polish.
   hover-highlight pattern. **~1–2 days. Higher risk; only attempt
   after Option B ships cleanly.**
 
-- [ ] **View / edit / delete individual annotations** in the runtime
-  library. Today the only option is "Clear all" — a reviewer cannot
-  fix a typo, undo a wrong tap, or remove a single annotation.
-  **~1–2 hours.**
+- [x] **View / edit / delete individual annotations** — the
+  `SessionMenu` sheet now lists every captured annotation
+  (thumbnail + screen/component + note). Tap a note to edit it
+  inline, tap × to delete that single annotation. Backed by new
+  `deleteAnnotation` / `updateAnnotationNote` context methods that
+  persist to AsyncStorage. _Needs on-device verification._
 
 - [ ] **After-screenshot workflow** — document the exact procedure for
   the developer (folder structure, naming convention), or add a

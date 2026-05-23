@@ -1,29 +1,31 @@
 /**
- * Small floating pill that surfaces session-level actions when the
- * reviewer has at least one captured annotation.
+ * Floating session pill + bottom-sheet manager.
  *
- * Behavior:
- *   - Hidden when annotations.length === 0 OR when annotation mode
- *     is currently active (the FAB owns the screen then).
- *   - Visible: a compact "<count> issues" pill above the FAB.
- *   - Tapping the pill opens a small action sheet with Export and
- *     Clear options.
- *
- * Phase 3 only wires Export and Clear. Future phases can add
- * "Resume verification", "View list", etc.
+ * - Pill: a compact "<count> issues" chip above the FAB, shown only
+ *   when there is ≥1 annotation and annotation mode is off.
+ * - Sheet: tapping the pill opens a sheet that lists every captured
+ *   annotation. Each row shows a thumbnail, the screen + component,
+ *   and the note. The reviewer can:
+ *     • tap a row to edit its note,
+ *     • tap × to delete that one annotation,
+ *     • Export & Share the whole session,
+ *     • Clear the whole session.
  */
 
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
-import { useArchLens } from "../state/context";
+import { useArchLens, type Annotation } from "../state/context";
 
 export function SessionMenu(): React.ReactElement | null {
   const {
@@ -31,9 +33,14 @@ export function SessionMenu(): React.ReactElement | null {
     isAnnotating,
     exportSession,
     clearAnnotations,
+    deleteAnnotation,
+    updateAnnotationNote,
   } = useArchLens();
   const [open, setOpen] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
+  // Which annotation is being edited (id), and the in-progress text.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState<string>("");
 
   if (annotations.length === 0 || isAnnotating) return null;
 
@@ -44,8 +51,7 @@ export function SessionMenu(): React.ReactElement | null {
       await exportSession();
       setOpen(false);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Export failed.";
+      const message = err instanceof Error ? err.message : "Export failed.";
       Alert.alert("ArchLens — Export failed", message);
     } finally {
       setBusy(false);
@@ -72,6 +78,35 @@ export function SessionMenu(): React.ReactElement | null {
     );
   };
 
+  const onDelete = (ann: Annotation): void => {
+    Alert.alert(
+      "Delete annotation?",
+      "Remove this single annotation? This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            if (editingId === ann.id) setEditingId(null);
+            void deleteAnnotation(ann.id);
+          },
+        },
+      ]
+    );
+  };
+
+  const startEdit = (ann: Annotation): void => {
+    setEditingId(ann.id);
+    setEditText(ann.note);
+  };
+
+  const commitEdit = (): void => {
+    if (editingId) void updateAnnotationNote(editingId, editText.trim());
+    setEditingId(null);
+    setEditText("");
+  };
+
   const issuesLabel =
     annotations.length === 1 ? "1 issue" : annotations.length + " issues";
 
@@ -90,21 +125,73 @@ export function SessionMenu(): React.ReactElement | null {
       <Modal
         visible={open}
         transparent={true}
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setOpen(false)}
       >
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          {/*
-            Stop-propagation: tapping the sheet itself shouldn't
-            close it. Pressing outside (the backdrop) does.
-          */}
-          <Pressable style={styles.sheet} onPress={() => undefined}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Session</Text>
             <Text style={styles.sheetSub}>
               {annotations.length} annotation
-              {annotations.length === 1 ? "" : "s"} captured
+              {annotations.length === 1 ? "" : "s"} captured · tap a note to
+              edit
             </Text>
 
+            {/* Annotation list */}
+            <ScrollView
+              style={styles.list}
+              keyboardShouldPersistTaps="handled"
+            >
+              {annotations.map((ann, i) => (
+                <View key={ann.id} style={styles.row}>
+                  <Image
+                    source={{
+                      uri: "data:image/png;base64," + ann.screenshotBase64,
+                    }}
+                    style={styles.thumb}
+                    resizeMode="cover"
+                    fadeDuration={0}
+                  />
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowMeta} numberOfLines={1}>
+                      #{i + 1} · {ann.screenName} ·{" "}
+                      {ann.element.componentName}
+                    </Text>
+
+                    {editingId === ann.id ? (
+                      <TextInput
+                        style={styles.editInput}
+                        value={editText}
+                        onChangeText={setEditText}
+                        onBlur={commitEdit}
+                        multiline
+                        autoFocus
+                        placeholder="Edit note…"
+                        placeholderTextColor="#999"
+                      />
+                    ) : (
+                      <Pressable onPress={() => startEdit(ann)}>
+                        <Text style={styles.rowNote} numberOfLines={3}>
+                          {ann.note || "(no note — tap to add)"}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={"Delete annotation " + (i + 1)}
+                    style={styles.deleteBtn}
+                    onPress={() => onDelete(ann)}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.deleteX}>×</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Actions */}
             <Pressable
               accessibilityRole="button"
               style={({ pressed }) => [
@@ -117,11 +204,13 @@ export function SessionMenu(): React.ReactElement | null {
               {busy ? (
                 <ActivityIndicator size="small" color="#1a1a1a" />
               ) : (
-                <Text style={styles.actionText}>Export & Share</Text>
+                <>
+                  <Text style={styles.actionText}>Export & Share</Text>
+                  <Text style={styles.actionSubText}>
+                    Markdown + JSON, opens the share sheet
+                  </Text>
+                </>
               )}
-              <Text style={styles.actionSubText}>
-                Markdown + JSON, opens the share sheet
-              </Text>
             </Pressable>
 
             <Pressable
@@ -149,8 +238,8 @@ export function SessionMenu(): React.ReactElement | null {
             >
               <Text style={styles.cancelText}>Close</Text>
             </Pressable>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -195,9 +284,55 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 16,
     padding: 20,
     paddingBottom: 32,
+    maxHeight: "85%",
   },
   sheetTitle: { fontSize: 20, fontWeight: "700", color: "#111" },
-  sheetSub: { fontSize: 13, color: "#666", marginTop: 4, marginBottom: 16 },
+  sheetSub: { fontSize: 13, color: "#666", marginTop: 4, marginBottom: 12 },
+
+  list: { maxHeight: 340, marginBottom: 12 },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  thumb: {
+    width: 40,
+    height: 64,
+    borderRadius: 4,
+    backgroundColor: "#000",
+    marginRight: 10,
+  },
+  rowBody: { flex: 1 },
+  rowMeta: {
+    fontSize: 11,
+    color: "#888",
+    fontFamily: "monospace",
+    marginBottom: 2,
+  },
+  rowNote: { fontSize: 13, color: "#111", lineHeight: 18 },
+  editInput: {
+    fontSize: 13,
+    color: "#111",
+    borderWidth: 1,
+    borderColor: "#1a1a1a",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minHeight: 40,
+    textAlignVertical: "top",
+  },
+  deleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    backgroundColor: "#fef2f2",
+  },
+  deleteX: { color: "#DC2626", fontSize: 18, fontWeight: "700", lineHeight: 20 },
 
   action: {
     paddingVertical: 14,
@@ -212,10 +347,6 @@ const styles = StyleSheet.create({
   actionDangerText: { color: "#DC2626" },
   actionSubText: { fontSize: 12, color: "#666", marginTop: 2 },
 
-  cancel: {
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 8,
-  },
+  cancel: { paddingVertical: 12, alignItems: "center", marginTop: 4 },
   cancelText: { fontSize: 14, color: "#666", fontWeight: "600" },
 });

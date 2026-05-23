@@ -96,21 +96,20 @@ export interface ArchLensContextValue {
 
   /**
    * Finalize the pending annotation with a note, persist it, and
-   * clear `pending`. Called by NoteModal's Save button.
-   *
-   * `boundsOverride` lets the reviewer adjust the auto-detected
-   * element box (drag-to-move, drag-corner-to-resize) before saving.
-   * If omitted, the original auto-detected bounds are kept.
+   * clear `pending`. Called by NoteModal's Save button. The
+   * auto-detected element bounds are always kept (the box is
+   * read-only as of the Option B simplification).
    */
-  saveAnnotation: (
-    note: string,
-    boundsOverride?: ElementBounds
-  ) => Promise<void>;
+  saveAnnotation: (note: string) => Promise<void>;
 
   /** All annotations from the current session. */
   annotations: Annotation[];
-  /** Wipe the session (for example after Export). */
+  /** Wipe the entire session (for example after Export). */
   clearAnnotations: () => Promise<void>;
+  /** Remove a single annotation by id. */
+  deleteAnnotation: (id: string) => Promise<void>;
+  /** Update the note text of a single annotation by id. */
+  updateAnnotationNote: (id: string, note: string) => Promise<void>;
 
   /**
    * Build the Markdown + JSON report and open the system share
