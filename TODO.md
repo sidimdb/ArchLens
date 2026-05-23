@@ -12,7 +12,7 @@ already-shipped features; everything here is genuinely not done yet.
 These are the items that, if a careful reviewer pokes at the project,
 they would notice. None of them are optional polish.
 
-- [x] **Improve element identification (Option B)** — `pickBestEntry`
+- [x] **Improve element identification** — `pickBestEntry`
   in `packages/runtime-lib/src/identify/identifyAtPoint.ts` now uses
   a 5-pass priority: (1) deepest specific non-screen user component
   with source, (2) deepest interactive host (`Pressable`, `Button`,
@@ -20,14 +20,7 @@ they would notice. None of them are optional polish.
   source incl. screens, (4) any user component, (5) leaf. This stops
   the picker from grabbing the whole screen when a bare button is
   tapped, while still preferring custom components that carry the
-  source file. _Needs on-device verification._
-
-- [ ] **Long-press preview mode (Option C — optional polish on top
-  of Option B)** — let the reviewer long-press the screen, see a
-  translucent box follow their finger as they slide across elements,
-  and release to commit. Closest mobile equivalent to the web's
-  hover-highlight pattern. **~1–2 days. Higher risk; only attempt
-  after Option B ships cleanly.**
+  source file.
 
 - [x] **View / edit / delete individual annotations** — the
   `SessionMenu` sheet now lists every captured annotation
@@ -55,11 +48,6 @@ they would notice. None of them are optional polish.
   annotation modal in action and add them under
   `docs/screenshots/`. README already references them. **~15 min
   after the module is final.**
-
-- [ ] **Update `idea.md`** to match what was actually built. The
-  combined CLI was removed, RN-detection + backend-skip were added,
-  per-violation AI suggestions are now live. Doc/code consistency
-  matters at the defense. **~30 min.**
 
 ---
 
