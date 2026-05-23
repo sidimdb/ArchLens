@@ -36,11 +36,13 @@ they would notice. None of them are optional polish.
   `deleteAnnotation` / `updateAnnotationNote` context methods that
   persist to AsyncStorage. _Needs on-device verification._
 
-- [ ] **After-screenshot workflow** — document the exact procedure for
-  the developer (folder structure, naming convention), or add a
-  "replay mode" that re-captures every annotated screen
-  automatically. Today this is the friction point of the whole verify
-  loop. **Documentation: ~30 min. Replay mode: ~1 day.**
+- [x] **After-screenshot workflow (documented)** — added a full
+  step-by-step "Full workflow" section to
+  `packages/runtime-verify/README.md` (annotate → fix → screenshot →
+  name → run), with a folder-structure example, verdict meanings,
+  and a troubleshooting table. Root README links to it. _(Replay
+  mode — auto re-capture — left as future work; documentation is
+  enough for now.)_
 
 - [x] **Image size validation in `archlens-verify`** — before each
   API call the CLI checks the after-screenshot's byte size against a

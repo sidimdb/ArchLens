@@ -75,6 +75,8 @@ Claude vision compares the before / after screenshots and writes verdicts back i
 
 The CLI also has a `--dry-run` mode so you can test the full pipeline without an API key.
 
+> 📖 **Full step-by-step verify workflow** (where to put after-screenshots, naming convention, verdict meanings, troubleshooting) is documented in [`packages/runtime-verify/README.md`](packages/runtime-verify/README.md).
+
 ---
 
 ## Repository layout
