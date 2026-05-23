@@ -161,23 +161,89 @@ function isUserComponent(entry: InspectorEntry): boolean {
   return true;
 }
 
-/** Pick the most specific user component in the hierarchy. */
+/**
+ * Interactive host components. For a UX audit, the reviewer almost
+ * always means the tappable element — a button, a toggle — not its
+ * inner <Text> label and not the whole screen that contains it. So
+ * we treat these as first-class selectable targets even though they
+ * are host primitives.
+ */
+const INTERACTIVE_NAMES = new Set([
+  "Pressable",
+  "TouchableOpacity",
+  "TouchableHighlight",
+  "TouchableWithoutFeedback",
+  "TouchableNativeFeedback",
+  "Button",
+  "Switch",
+  "TextInput",
+]);
+
+function isInteractive(entry: InspectorEntry): boolean {
+  return !!entry.name && INTERACTIVE_NAMES.has(entry.name);
+}
+
+/**
+ * Screen / page / navigator level components. These are user
+ * components but they're too broad to be a useful annotation target
+ * on their own — if we can find anything more specific, we prefer it.
+ * Heuristic: RN screens conventionally end in Screen / Page / View
+ * (as in HomeView) / Navigator / Tab.
+ */
+function isScreenLike(entry: InspectorEntry): boolean {
+  const n = entry.name ?? "";
+  return /(?:Screen|Page|Navigator|Tab)$/.test(n);
+}
+
+/**
+ * Pick the best annotation target from the inspector hierarchy
+ * (ordered root → leaf). Priority, in order:
+ *
+ *   1. Deepest specific user component WITH source — e.g. a custom
+ *      <SaveButton> from SaveButton.tsx:42. Best case: specific AND
+ *      carries the source file the developer needs. Screen-level
+ *      components are excluded here so we don't grab the whole page.
+ *   2. Deepest interactive host — <Pressable>, <Button>, <Switch>,
+ *      etc. Catches bare buttons that aren't wrapped in a custom
+ *      component, instead of falling all the way back to the screen.
+ *   3. Deepest user component with source, INCLUDING screens — the
+ *      original behavior; fires when the tap landed on bare screen
+ *      content with nothing more specific around it.
+ *   4. Any user component.
+ *   5. The leaf, whatever it is.
+ */
 function pickBestEntry(hierarchy: InspectorEntry[]): InspectorEntry | null {
   if (hierarchy.length === 0) return null;
 
-  // Walk leaf → root, return the first user component with source info.
+  // Pass 1: deepest specific (non-screen) user component with source.
+  for (let i = hierarchy.length - 1; i >= 0; i--) {
+    const entry = hierarchy[i]!;
+    if (
+      isUserComponent(entry) &&
+      entry.source?.fileName &&
+      !isScreenLike(entry)
+    ) {
+      return entry;
+    }
+  }
+
+  // Pass 2: deepest interactive host element.
+  for (let i = hierarchy.length - 1; i >= 0; i--) {
+    if (isInteractive(hierarchy[i]!)) return hierarchy[i]!;
+  }
+
+  // Pass 3: deepest user component with source (screens included).
   for (let i = hierarchy.length - 1; i >= 0; i--) {
     const entry = hierarchy[i]!;
     if (isUserComponent(entry) && entry.source?.fileName) return entry;
   }
 
-  // Fallback 1: any user component, even without source.
+  // Pass 4: any user component, even without source.
   for (let i = hierarchy.length - 1; i >= 0; i--) {
-    const entry = hierarchy[i]!;
-    if (isUserComponent(entry)) return entry;
+    if (isUserComponent(hierarchy[i]!)) return hierarchy[i]!;
   }
 
-  // Fallback 2: leaf, even if it's a host primitive.
+  // Pass 5: leaf, even if it's a host primitive.
   return hierarchy[hierarchy.length - 1] ?? null;
 }
 

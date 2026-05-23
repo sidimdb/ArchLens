@@ -12,12 +12,15 @@ already-shipped features; everything here is genuinely not done yet.
 These are the items that, if a careful reviewer pokes at the project,
 they would notice. None of them are optional polish.
 
-- [ ] **Improve element identification (Option B)** — tune the
-  `pickBestEntry` heuristic in
-  `packages/runtime-lib/src/identify/identifyAtPoint.ts` to prefer
-  touchable / interactive components (`Pressable`, `TouchableOpacity`,
-  `Button`) over their text children. Reviewers usually mean the
-  interactive element, not its inner label. **~1–2 hours.**
+- [x] **Improve element identification (Option B)** — `pickBestEntry`
+  in `packages/runtime-lib/src/identify/identifyAtPoint.ts` now uses
+  a 5-pass priority: (1) deepest specific non-screen user component
+  with source, (2) deepest interactive host (`Pressable`, `Button`,
+  `Switch`, `TextInput`, touchables), (3) deepest user component with
+  source incl. screens, (4) any user component, (5) leaf. This stops
+  the picker from grabbing the whole screen when a bare button is
+  tapped, while still preferring custom components that carry the
+  source file. _Needs on-device verification._
 
 - [ ] **Long-press preview mode (Option C — optional polish on top
   of Option B)** — let the reviewer long-press the screen, see a
