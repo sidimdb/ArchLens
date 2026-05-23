@@ -79,10 +79,14 @@ These improve robustness or user experience but are not deal-breakers.
   `disabled={process.env.APP_ENV === "staging"}`). Defaults to
   active in dev — current behavior unchanged.
 
-- [ ] **Sample-projects smoke test before defense** — manually run
-  the analyzer against `tests/good-app`, `tests/bad-app`, and
-  `tests/unusual-layout-app`, confirm scores still make sense.
-  **~15 min.**
+- [x] **Sample-projects smoke test + fixture refresh** — ran the
+  analyzer on all three test projects against the current 8-rule
+  set. Found the fixtures predated the rule changes: good-app
+  accidentally failed inline-styles, and bad-app didn't exercise
+  Rules of Hooks or Naming. Fixed: good-app now scores 100/100
+  (passes all 8), bad-app now fails all 8 (added a conditional-hook
+  violation + a lowercase component). unusual-layout-app still
+  validates the classifier.
 
 ---
 

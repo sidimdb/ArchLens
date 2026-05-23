@@ -13,6 +13,13 @@ export default function BigMessyScreen() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // ❌ Rules-of-Hooks violation: a hook called conditionally. Hooks
+  // must run unconditionally at the top level on every render.
+  if (query.length > 0) {
+    const [filtered, setFiltered] = useState([]);
+    setFiltered(users);
+  }
+
   useEffect(() => {
     async function load() {
       const t = await AsyncStorage.getItem('token');
