@@ -149,13 +149,14 @@ function DevProvider({
   }, []);
 
   const saveAnnotation = useCallback(
-    async (note: string): Promise<void> => {
+    async (note: string, category?: Annotation["category"]): Promise<void> => {
       if (!pending) return;
 
       const annotation: Annotation = {
         id: pending.id,
         capturedAt: pending.capturedAt,
         note,
+        category,
         element: pending.element,
         screenshotBase64: pending.screenshotBase64,
         screenName: pending.screenName,

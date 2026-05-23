@@ -158,6 +158,7 @@ function buildJsonSidecar(
     id: a.id,
     capturedAt: a.capturedAt,
     note: a.note,
+    category: a.category ?? null,
     element: a.element,
     screenName: a.screenName,
   }));

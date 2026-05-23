@@ -1,19 +1,20 @@
 /**
- * The floating "annotation" button that hovers over the host app.
+ * The floating "UX Audit" button that hovers over the host app.
  *
- * - Idle state: dark circular FAB in the bottom-right with a small
- *   pencil icon. Tap to enter annotation mode.
- * - Active state: turns red, expands to show a hint text "Tap any
- *   element to annotate". Tap again to leave annotation mode.
+ * - Idle state: a dark pill in the bottom-right reading "UX Audit"
+ *   with a small target icon. Tap to enter annotation mode.
+ * - Active state: turns red, swaps to a "×" + "Tap an element" hint.
+ *   Tap again to leave annotation mode.
  *
- * In Phase 1 this is purely a visual toggle. Phase 2 hooks the
- * "active state" up to a screen-wide overlay that captures taps
- * and identifies the underlying component.
+ * The pill (rather than a bare icon circle) makes the tool
+ * self-explanatory — a reviewer who has never seen it knows what it
+ * is at a glance.
  */
 
 import React from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useArchLens } from "../state/context";
+import { colors, radius, shadow, layers } from "../theme";
 
 export function FloatingButton(): React.ReactElement {
   const { isAnnotating, toggleAnnotating } = useArchLens();
@@ -24,8 +25,8 @@ export function FloatingButton(): React.ReactElement {
       accessibilityRole="button"
       accessibilityLabel={
         isAnnotating
-          ? "Exit ArchLens annotation mode"
-          : "Enter ArchLens annotation mode"
+          ? "Exit UX Audit annotation mode"
+          : "Start a UX Audit — tap to annotate elements"
       }
       style={({ pressed }) => [
         styles.button,
@@ -33,58 +34,77 @@ export function FloatingButton(): React.ReactElement {
         pressed && styles.pressed,
       ]}
     >
-      <Text style={styles.icon}>{isAnnotating ? "×" : "✎"}</Text>
       {isAnnotating ? (
-        <Text style={styles.hint} numberOfLines={1}>
-          Tap any element to annotate
-        </Text>
-      ) : null}
+        <>
+          <Text style={styles.icon}>×</Text>
+          <Text style={styles.label} numberOfLines={1}>
+            Tap an element
+          </Text>
+        </>
+      ) : (
+        <>
+          <View style={styles.target}>
+            <View style={styles.targetDot} />
+          </View>
+          <Text style={styles.label} numberOfLines={1}>
+            UX Audit
+          </Text>
+        </>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  // The FAB is absolutely positioned over the host app. zIndex +
-  // elevation make sure it stays above app content on both platforms.
+  // Absolutely positioned over the host app; zIndex + elevation keep
+  // it above app content on both platforms.
   button: {
     position: "absolute",
     right: 20,
     bottom: 40,
-    minWidth: 56,
-    minHeight: 56,
-    borderRadius: 28,
-    paddingHorizontal: 16,
+    minHeight: 52,
+    borderRadius: radius.pill,
+    paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    zIndex: 9999,
+    zIndex: layers.fab,
+    ...shadow.float,
   },
-  idle: {
-    backgroundColor: "#1a1a1a",
+  idle: { backgroundColor: colors.ink },
+  active: { backgroundColor: colors.danger, paddingHorizontal: 20 },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.97 }] },
+
+  // Idle "target" glyph — a ring with a center dot, reads as a
+  // crosshair / inspector cursor.
+  target: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 9,
   },
-  active: {
-    backgroundColor: "#DC2626",
-    paddingHorizontal: 20,
+  targetDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.white,
   },
-  pressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.96 }],
-  },
+
   icon: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 22,
     fontWeight: "700",
     lineHeight: 24,
+    marginRight: 8,
   },
-  hint: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "600",
-    marginLeft: 10,
+  label: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
 });

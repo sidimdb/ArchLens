@@ -25,19 +25,26 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useArchLens } from "../state/context";
+import {
+  useArchLens,
+  UX_CATEGORIES,
+  type UxCategory,
+} from "../state/context";
+import { colors } from "../theme";
 
 const SCREENSHOT_DISPLAY_WIDTH = 280;
 
 export function NoteModal(): React.ReactElement | null {
   const { pending, setPending, saveAnnotation } = useArchLens();
   const [note, setNote] = useState<string>("");
+  const [category, setCategory] = useState<UxCategory | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
 
-  // Reset the note whenever a new pending annotation arrives.
+  // Reset the note + category whenever a new pending annotation arrives.
   const pendingId = pending?.id ?? null;
   useEffect(() => {
     setNote("");
+    setCategory(null);
   }, [pendingId]);
 
   // ---------- Memoized image source ----------
@@ -74,14 +81,16 @@ export function NoteModal(): React.ReactElement | null {
   const onCancel = (): void => {
     setPending(null);
     setNote("");
+    setCategory(null);
   };
 
   const onSave = async (): Promise<void> => {
     if (saving) return;
     setSaving(true);
     try {
-      await saveAnnotation(note.trim());
+      await saveAnnotation(note.trim(), category ?? undefined);
       setNote("");
+      setCategory(null);
     } finally {
       setSaving(false);
     }
@@ -145,6 +154,31 @@ export function NoteModal(): React.ReactElement | null {
               />
               {/* Read-only highlight of the detected element. */}
               <View style={[styles.box, boxStyle]} pointerEvents="none" />
+            </View>
+
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.chipRow}>
+              {UX_CATEGORIES.map((c) => {
+                const selected = category === c;
+                return (
+                  <Pressable
+                    key={c}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => setCategory(selected ? null : c)}
+                    style={[styles.chip, selected && styles.chipSelected]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        selected && styles.chipTextSelected,
+                      ]}
+                    >
+                      {c}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <Text style={styles.label}>Note</Text>
@@ -277,6 +311,27 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 6,
   },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    alignSelf: "flex-start",
+    marginBottom: 16,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
+  },
+  chipSelected: {
+    backgroundColor: colors.highlight,
+    borderColor: colors.highlight,
+  },
+  chipText: { fontSize: 13, color: "#374151", fontWeight: "600" },
+  chipTextSelected: { color: colors.white },
   input: {
     width: "100%",
     minHeight: 80,

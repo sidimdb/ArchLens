@@ -17,13 +17,14 @@
 export { ArchLensProvider } from "./components/ArchLensProvider";
 export type { ArchLensProviderProps } from "./components/ArchLensProvider";
 
-export { useArchLens } from "./state/context";
+export { useArchLens, UX_CATEGORIES } from "./state/context";
 export type {
   ArchLensContextValue,
   Annotation,
   PendingAnnotation,
   ElementInfo,
   ElementBounds,
+  UxCategory,
 } from "./state/context";
 
 export { setNavigationRef } from "./integrations/navigation";
@@ -37,4 +38,4 @@ export {
   type ExportResult,
 } from "./export/share";
 
-export const VERSION = "0.0.3";
+export const VERSION = "0.0.4";

@@ -119,6 +119,7 @@ function buildIssueSection(
     "## Issue #" + index + " — " + escapeMd(headlineNote),
     "",
     "**Screen:** " + escapeMd(ann.screenName) + "  ",
+    "**Category:** " + (ann.category ? escapeMd(ann.category) : "_uncategorized_") + "  ",
     "**Component:** `<" + ann.element.componentName + ">`  ",
     "**Source:** `" + sourceLine + "`  ",
     "**Captured at:** " + new Date(ann.capturedAt).toISOString() + "  ",
@@ -171,6 +172,7 @@ function buildJsonAppendix(
     id: a.id,
     capturedAt: a.capturedAt,
     note: a.note,
+    category: a.category ?? null,
     element: a.element,
     screenName: a.screenName,
     // screenshotBase64 omitted on purpose — see comment above.

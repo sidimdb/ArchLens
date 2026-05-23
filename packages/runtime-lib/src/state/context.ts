@@ -45,6 +45,24 @@ export interface ScreenDimensions {
   height: number;
 }
 
+/**
+ * The fixed set of UX issue categories a reviewer can tag an
+ * annotation with. The UX module deliberately has no automated rules
+ * (UX is subjective), so this lightweight taxonomy is what gives the
+ * exported report structure — issues can be grouped and counted by
+ * category without the tool ever passing judgement.
+ */
+export const UX_CATEGORIES = [
+  "Layout",
+  "Spacing",
+  "Visual",
+  "Copy",
+  "Accessibility",
+  "Other",
+] as const;
+
+export type UxCategory = (typeof UX_CATEGORIES)[number];
+
 /** A single captured UX issue. */
 export interface Annotation {
   /** Stable id (uuid-ish) used in the exported Markdown. */
@@ -53,6 +71,8 @@ export interface Annotation {
   capturedAt: number;
   /** Free-form note from the reviewer. */
   note: string;
+  /** Optional category tag chosen at save time. */
+  category?: UxCategory;
   /** Tapped element metadata. */
   element: ElementInfo;
   /** Base64-encoded PNG of the full screen at capture time. */
@@ -100,7 +120,7 @@ export interface ArchLensContextValue {
    * auto-detected element bounds are always kept (the box is
    * read-only as of the Option B simplification).
    */
-  saveAnnotation: (note: string) => Promise<void>;
+  saveAnnotation: (note: string, category?: UxCategory) => Promise<void>;
 
   /** All annotations from the current session. */
   annotations: Annotation[];

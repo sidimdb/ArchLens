@@ -1,18 +1,19 @@
 /**
- * Floating session pill + bottom-sheet manager.
+ * Floating session pill + bottom-sheet manager for the UX Audit.
  *
  * - Pill: a compact "<count> issues" chip above the FAB, shown only
  *   when there is ≥1 annotation and annotation mode is off.
- * - Sheet: tapping the pill opens a sheet that lists every captured
- *   annotation. Each row shows a thumbnail, the screen + component,
- *   and the note. The reviewer can:
+ * - Sheet: tapping the pill opens the "UX Audit" panel that lists
+ *   every captured annotation, grouped by screen. Each row shows a
+ *   thumbnail, the component, its category tag, and the note. The
+ *   reviewer can:
  *     • tap a row to edit its note,
  *     • tap × to delete that one annotation,
  *     • Export & Share the whole session,
  *     • Clear the whole session.
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +27,12 @@ import {
   View,
 } from "react-native";
 import { useArchLens, type Annotation } from "../state/context";
+import { colors, radius, shadow, layers } from "../theme";
+
+interface ScreenGroup {
+  screenName: string;
+  items: Annotation[];
+}
 
 export function SessionMenu(): React.ReactElement | null {
   const {
@@ -39,9 +46,31 @@ export function SessionMenu(): React.ReactElement | null {
   } = useArchLens();
   const [open, setOpen] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
-  // Which annotation is being edited (id), and the in-progress text.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState<string>("");
+
+  // Stable issue number per annotation id (capture order), and the
+  // by-screen grouping used for the list layout.
+  const { numberById, groups } = useMemo(() => {
+    const numberById = new Map<string, number>();
+    annotations.forEach((a, i) => numberById.set(a.id, i + 1));
+
+    const order: string[] = [];
+    const byScreen = new Map<string, Annotation[]>();
+    for (const a of annotations) {
+      const key = a.screenName || "unknown";
+      if (!byScreen.has(key)) {
+        byScreen.set(key, []);
+        order.push(key);
+      }
+      byScreen.get(key)!.push(a);
+    }
+    const groups: ScreenGroup[] = order.map((screenName) => ({
+      screenName,
+      items: byScreen.get(screenName)!,
+    }));
+    return { numberById, groups };
+  }, [annotations]);
 
   if (annotations.length === 0 || isAnnotating) return null;
 
@@ -53,7 +82,7 @@ export function SessionMenu(): React.ReactElement | null {
       setOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Export failed.";
-      Alert.alert("ArchLens — Export failed", message);
+      Alert.alert("UX Audit — Export failed", message);
     } finally {
       setBusy(false);
     }
@@ -115,7 +144,7 @@ export function SessionMenu(): React.ReactElement | null {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={"Open session menu — " + issuesLabel}
+        accessibilityLabel={"Open UX Audit session — " + issuesLabel}
         style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         onPress={() => setOpen(true)}
       >
@@ -131,11 +160,12 @@ export function SessionMenu(): React.ReactElement | null {
       >
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Session</Text>
+            <View style={styles.handle} />
+            <Text style={styles.sheetTitle}>UX Audit</Text>
             <Text style={styles.sheetSub}>
-              {annotations.length} annotation
-              {annotations.length === 1 ? "" : "s"} captured · tap a note to
-              edit
+              {annotations.length} issue
+              {annotations.length === 1 ? "" : "s"} across {groups.length}{" "}
+              screen{groups.length === 1 ? "" : "s"} · tap a note to edit
             </Text>
 
             {storageWarning ? (
@@ -147,61 +177,81 @@ export function SessionMenu(): React.ReactElement | null {
               </View>
             ) : null}
 
-            {/* Annotation list */}
             <ScrollView
               style={styles.list}
               keyboardShouldPersistTaps="handled"
             >
-              {annotations.map((ann, i) => (
-                <View key={ann.id} style={styles.row}>
-                  <Image
-                    source={{
-                      uri: "data:image/png;base64," + ann.screenshotBase64,
-                    }}
-                    style={styles.thumb}
-                    resizeMode="cover"
-                    fadeDuration={0}
-                  />
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
-                      #{i + 1} · {ann.screenName} ·{" "}
-                      {ann.element.componentName}
+              {groups.map((group) => (
+                <View key={group.screenName} style={styles.group}>
+                  <View style={styles.groupHeader}>
+                    <Text style={styles.groupTitle} numberOfLines={1}>
+                      {group.screenName}
                     </Text>
-
-                    {editingId === ann.id ? (
-                      <TextInput
-                        style={styles.editInput}
-                        value={editText}
-                        onChangeText={setEditText}
-                        onBlur={commitEdit}
-                        multiline
-                        autoFocus
-                        placeholder="Edit note…"
-                        placeholderTextColor="#999"
-                      />
-                    ) : (
-                      <Pressable onPress={() => startEdit(ann)}>
-                        <Text style={styles.rowNote} numberOfLines={3}>
-                          {ann.note || "(no note — tap to add)"}
-                        </Text>
-                      </Pressable>
-                    )}
+                    <Text style={styles.groupCount}>{group.items.length}</Text>
                   </View>
 
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={"Delete annotation " + (i + 1)}
-                    style={styles.deleteBtn}
-                    onPress={() => onDelete(ann)}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.deleteX}>×</Text>
-                  </Pressable>
+                  {group.items.map((ann) => (
+                    <View key={ann.id} style={styles.row}>
+                      <Image
+                        source={{
+                          uri: "data:image/png;base64," + ann.screenshotBase64,
+                        }}
+                        style={styles.thumb}
+                        resizeMode="cover"
+                        fadeDuration={0}
+                      />
+                      <View style={styles.rowBody}>
+                        <View style={styles.rowMetaLine}>
+                          <Text style={styles.rowMeta} numberOfLines={1}>
+                            #{numberById.get(ann.id)} ·{" "}
+                            {ann.element.componentName}
+                          </Text>
+                          {ann.category ? (
+                            <View style={styles.catChip}>
+                              <Text style={styles.catChipText}>
+                                {ann.category}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        {editingId === ann.id ? (
+                          <TextInput
+                            style={styles.editInput}
+                            value={editText}
+                            onChangeText={setEditText}
+                            onBlur={commitEdit}
+                            multiline
+                            autoFocus
+                            placeholder="Edit note…"
+                            placeholderTextColor="#999"
+                          />
+                        ) : (
+                          <Pressable onPress={() => startEdit(ann)}>
+                            <Text style={styles.rowNote} numberOfLines={3}>
+                              {ann.note || "(no note — tap to add)"}
+                            </Text>
+                          </Pressable>
+                        )}
+                      </View>
+
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          "Delete annotation " + numberById.get(ann.id)
+                        }
+                        style={styles.deleteBtn}
+                        onPress={() => onDelete(ann)}
+                        hitSlop={8}
+                      >
+                        <Text style={styles.deleteX}>×</Text>
+                      </Pressable>
+                    </View>
+                  ))}
                 </View>
               ))}
             </ScrollView>
 
-            {/* Actions */}
             <Pressable
               accessibilityRole="button"
               style={({ pressed }) => [
@@ -212,7 +262,7 @@ export function SessionMenu(): React.ReactElement | null {
               disabled={busy}
             >
               {busy ? (
-                <ActivityIndicator size="small" color="#1a1a1a" />
+                <ActivityIndicator size="small" color={colors.white} />
               ) : (
                 <>
                   <Text style={styles.actionText}>Export & Share</Text>
@@ -236,7 +286,7 @@ export function SessionMenu(): React.ReactElement | null {
               <Text style={[styles.actionText, styles.actionDangerText]}>
                 Clear session
               </Text>
-              <Text style={styles.actionSubText}>
+              <Text style={[styles.actionSubText, styles.actionDangerSub]}>
                 Delete all captured annotations from this device
               </Text>
             </Pressable>
@@ -259,19 +309,15 @@ const styles = StyleSheet.create({
   pill: {
     position: "absolute",
     right: 20,
-    bottom: 110,
+    bottom: 104,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 20,
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    zIndex: 9998,
+    backgroundColor: colors.ink,
+    borderRadius: radius.pill,
+    zIndex: layers.fab,
+    ...shadow.float,
   },
   pillPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   dot: {
@@ -281,7 +327,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#16A34A",
     marginRight: 8,
   },
-  pillText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  pillText: { color: colors.white, fontSize: 13, fontWeight: "600" },
 
   backdrop: {
     flex: 1,
@@ -290,13 +336,21 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
     padding: 20,
     paddingBottom: 32,
     maxHeight: "85%",
   },
-  sheetTitle: { fontSize: 20, fontWeight: "700", color: "#111" },
+  handle: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#e5e7eb",
+    marginBottom: 12,
+  },
+  sheetTitle: { fontSize: 22, fontWeight: "800", color: colors.ink },
   sheetSub: { fontSize: 13, color: "#666", marginTop: 4, marginBottom: 12 },
 
   warnBanner: {
@@ -310,34 +364,71 @@ const styles = StyleSheet.create({
   },
   warnText: { fontSize: 12, color: "#92610b", lineHeight: 17 },
 
-  list: { maxHeight: 340, marginBottom: 12 },
+  list: { marginBottom: 12 },
+  group: { marginBottom: 14 },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 6,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  groupTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.inkSoft,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  groupCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.muted,
+    marginLeft: 8,
+  },
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: "#f3f4f6",
   },
   thumb: {
     width: 40,
     height: 64,
-    borderRadius: 4,
+    borderRadius: 6,
     backgroundColor: "#000",
     marginRight: 10,
   },
   rowBody: { flex: 1 },
+  rowMetaLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+    gap: 6,
+  },
   rowMeta: {
+    flexShrink: 1,
     fontSize: 11,
     color: "#888",
     fontFamily: "monospace",
-    marginBottom: 2,
   },
+  catChip: {
+    backgroundColor: colors.highlightFill,
+    borderRadius: radius.chip,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  catChipText: { fontSize: 10, fontWeight: "700", color: colors.highlight },
   rowNote: { fontSize: 13, color: "#111", lineHeight: 18 },
   editInput: {
     fontSize: 13,
     color: "#111",
     borderWidth: 1,
-    borderColor: "#1a1a1a",
+    borderColor: colors.ink,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -351,22 +442,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
-    backgroundColor: "#fef2f2",
+    backgroundColor: colors.dangerSoft,
   },
-  deleteX: { color: "#DC2626", fontSize: 18, fontWeight: "700", lineHeight: 20 },
+  deleteX: {
+    color: colors.danger,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
 
   action: {
     paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.ink,
     borderRadius: 8,
     marginBottom: 8,
   },
-  actionPressed: { opacity: 0.7 },
-  actionDanger: { backgroundColor: "#fef2f2" },
-  actionText: { fontSize: 15, fontWeight: "600", color: "#111" },
-  actionDangerText: { color: "#DC2626" },
-  actionSubText: { fontSize: 12, color: "#666", marginTop: 2 },
+  actionPressed: { opacity: 0.85 },
+  actionDanger: { backgroundColor: colors.dangerSoft },
+  actionText: { fontSize: 15, fontWeight: "700", color: colors.white },
+  actionDangerText: { color: colors.danger },
+  actionSubText: { fontSize: 12, color: colors.whiteSoft, marginTop: 2 },
+  actionDangerSub: { color: "#b45309" },
 
   cancel: { paddingVertical: 12, alignItems: "center", marginTop: 4 },
   cancelText: { fontSize: 14, color: "#666", fontWeight: "600" },
