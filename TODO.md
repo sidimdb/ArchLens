@@ -42,10 +42,11 @@ they would notice. None of them are optional polish.
   automatically. Today this is the friction point of the whole verify
   loop. **Documentation: ~30 min. Replay mode: ~1 day.**
 
-- [ ] **Image size validation in `archlens-verify`** — Claude vision
-  has a 5MB-per-image limit; real iPhone screenshots can exceed it.
-  Reject or downscale oversized images with a clear message instead
-  of letting the API call fail mid-batch. **~30 min.**
+- [x] **Image size validation in `archlens-verify`** — before each
+  API call the CLI checks the after-screenshot's byte size against a
+  ~4.5MB threshold (Claude vision's limit is 5MB). Oversized images
+  are reported as `uncertain` with a clear "resize to ~1500px and
+  re-run" message instead of failing cryptically mid-batch.
 
 - [ ] **Real runtime UX audit screenshots in the README** — once the
   runtime module is polished, capture 1–2 screenshots showing the

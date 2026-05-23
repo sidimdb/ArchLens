@@ -117,6 +117,33 @@ function readAsBase64(filePath: string): string {
   return fs.readFileSync(filePath).toString("base64");
 }
 
+// Claude vision rejects images larger than 5MB. We use a slightly
+// lower threshold to leave headroom for the base64 + request overhead.
+const MAX_IMAGE_BYTES = 4_500_000; // ~4.5 MB
+
+/**
+ * Check an after-screenshot's byte size against Claude's limit.
+ * Returns a human-readable error string if it's too big, else null.
+ */
+function checkImageSize(filePath: string): string | null {
+  let bytes: number;
+  try {
+    bytes = fs.statSync(filePath).size;
+  } catch {
+    return "could not read the after-screenshot file";
+  }
+  if (bytes > MAX_IMAGE_BYTES) {
+    const mb = (bytes / 1_000_000).toFixed(1);
+    return (
+      "after-screenshot is " +
+      mb +
+      "MB, over Claude vision's ~5MB limit. Resize it (e.g. to about " +
+      "1500px on the long edge) and re-run."
+    );
+  }
+  return null;
+}
+
 /** Canned verdict generator for --dry-run. Cycles through verdicts. */
 function dryRunVerdict(index: number): RawVerdict {
   const cycle = [
@@ -194,6 +221,22 @@ async function main(): Promise<void> {
         verifiedAt: new Date().toISOString(),
       });
       continue;
+    }
+
+    // Guard against oversized after-screenshots before the API call.
+    // Skip the check in dry-run (no real API call is made).
+    if (!args.dryRun) {
+      const sizeError = checkImageSize(afterPath);
+      if (sizeError) {
+        console.log("→ uncertain (image too large)");
+        verified.push({
+          ...issue,
+          verdict: "uncertain",
+          reasoning: "Could not verify: " + sizeError,
+          verifiedAt: new Date().toISOString(),
+        });
+        continue;
+      }
     }
 
     try {
