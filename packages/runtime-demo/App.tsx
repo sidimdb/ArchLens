@@ -42,10 +42,23 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
 setNavigationRef(navigationRef);
 
+// Cloud sync configuration. Both values come from .env via Expo's
+// EXPO_PUBLIC_* convention, so they're embedded at build time and
+// never hardcoded in source. If either is missing the app falls back
+// to capture-only mode (no Submit button on the session sheet).
+const API_URL = process.env.EXPO_PUBLIC_ARCHLENS_API_URL;
+const PROJECT_KEY = process.env.EXPO_PUBLIC_ARCHLENS_PROJECT_KEY;
+
 export default function App(): React.ReactElement {
   return (
     <SafeAreaProvider>
-      <ArchLensProvider projectName="FitTrack (ArchLens demo)">
+      <ArchLensProvider
+        projectName="FitTrack (ArchLens demo)"
+        apiUrl={API_URL}
+        projectKey={PROJECT_KEY}
+        reviewerLabel="Demo reviewer"
+        appVersion="0.1.0"
+      >
         <NavigationContainer ref={navigationRef}>
           <Stack.Navigator initialRouteName="Home">
             <Stack.Screen name="Home" component={HomeScreen} />

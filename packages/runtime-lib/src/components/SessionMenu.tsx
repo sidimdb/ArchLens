@@ -1,16 +1,26 @@
 /**
  * Floating session pill + bottom-sheet manager for the UX Audit.
  *
- * - Pill: a compact "<count> issues" chip above the FAB, shown only
- *   when there is ≥1 annotation and annotation mode is off.
+ * - Pill: a compact "<count> issues" chip above the FAB, visible
+ *   whenever there's at least one captured issue and the inspector
+ *   control bar isn't up.
  * - Sheet: tapping the pill opens the "UX Audit" panel that lists
- *   every captured annotation, grouped by screen. Each row shows a
- *   thumbnail, the component, its category tag, and the note. The
+ *   every captured annotation, grouped by screen, with a status
+ *   badge per row (draft / submitting / submitted / failed). The
  *   reviewer can:
- *     • tap a row to edit its note,
- *     • tap × to delete that one annotation,
- *     • Export & Share the whole session,
- *     • Clear the whole session.
+ *     • tap a row to edit its note (only while draft),
+ *     • tap × to delete a single annotation (only while draft),
+ *     • **Submit to dashboard** to batch-send everything pending,
+ *     • **Clear submitted** to wipe rows the dashboard already has.
+ *
+ * Submitted rows are locked — chain-of-custody. Their content can't
+ * be edited on the device any more than it can in the dashboard.
+ *
+ * Internal naming note: variables / types use `syncStatus` /
+ * `pending` / `synced` because they describe the underlying sync
+ * operation. Only the reviewer-facing labels speak "draft / submitted"
+ * — that wording is friendlier for non-technical reviewers, who don't
+ * think in terms of "syncing."
  */
 
 import React, { useMemo, useState } from "react";
@@ -26,7 +36,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useArchLens, type Annotation } from "../state/context";
+import {
+  useArchLens,
+  type Annotation,
+  type SyncStatus,
+} from "../state/context";
 import { colors, radius, shadow, layers } from "../theme";
 
 interface ScreenGroup {
@@ -34,70 +48,96 @@ interface ScreenGroup {
   items: Annotation[];
 }
 
+const STATUS_LABEL: Record<SyncStatus, string> = {
+  pending: "Draft",
+  submitting: "Submitting…",
+  synced: "✓ Submitted",
+  failed: "⚠ Failed",
+};
+
+function statusOf(a: Annotation): SyncStatus {
+  return a.syncStatus ?? "pending";
+}
+
 export function SessionMenu(): React.ReactElement | null {
   const {
     annotations,
     isInspecting,
     storageWarning,
-    exportSession,
+    cloudConfigured,
+    submitToDashboard,
     clearAnnotations,
     deleteAnnotation,
     updateAnnotationNote,
   } = useArchLens();
   const [open, setOpen] = useState<boolean>(false);
-  const [busy, setBusy] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState<string>("");
 
-  // Stable issue number per annotation id (capture order), and the
-  // by-screen grouping used for the list layout.
-  const { numberById, groups } = useMemo(() => {
-    const numberById = new Map<string, number>();
-    annotations.forEach((a, i) => numberById.set(a.id, i + 1));
+  const { numberById, groups, pendingCount, syncedCount, failedCount } =
+    useMemo(() => {
+      const numberById = new Map<string, number>();
+      annotations.forEach((a, i) => numberById.set(a.id, i + 1));
 
-    const order: string[] = [];
-    const byScreen = new Map<string, Annotation[]>();
-    for (const a of annotations) {
-      const key = a.screenName || "unknown";
-      if (!byScreen.has(key)) {
-        byScreen.set(key, []);
-        order.push(key);
+      const order: string[] = [];
+      const byScreen = new Map<string, Annotation[]>();
+      for (const a of annotations) {
+        const key = a.screenName || "unknown";
+        if (!byScreen.has(key)) {
+          byScreen.set(key, []);
+          order.push(key);
+        }
+        byScreen.get(key)!.push(a);
       }
-      byScreen.get(key)!.push(a);
-    }
-    const groups: ScreenGroup[] = order.map((screenName) => ({
-      screenName,
-      items: byScreen.get(screenName)!,
-    }));
-    return { numberById, groups };
-  }, [annotations]);
+      const groups: ScreenGroup[] = order.map((screenName) => ({
+        screenName,
+        items: byScreen.get(screenName)!,
+      }));
 
-  // The pill is visible whenever there's at least one issue — including
-  // mid-audit, so the reviewer can see the running count and open the
-  // list. It only hides while the inspector control bar is up, so it
-  // can't collide with that bottom-of-screen UI.
+      let pendingCount = 0,
+        syncedCount = 0,
+        failedCount = 0;
+      for (const a of annotations) {
+        const s = statusOf(a);
+        if (s === "synced") syncedCount++;
+        else if (s === "failed") failedCount++;
+        else pendingCount++; // pending + submitting
+      }
+      return { numberById, groups, pendingCount, syncedCount, failedCount };
+    }, [annotations]);
+
   if (annotations.length === 0 || isInspecting) return null;
 
-  const onExport = async (): Promise<void> => {
-    if (busy) return;
-    setBusy(true);
+  const onSubmit = async (): Promise<void> => {
+    if (submitting || !cloudConfigured || pendingCount + failedCount === 0)
+      return;
+    setSubmitting(true);
     try {
-      await exportSession();
-      setOpen(false);
+      await submitToDashboard();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Export failed.";
-      Alert.alert("UX Audit — Export failed", message);
+      const message = err instanceof Error ? err.message : "Submit failed.";
+      Alert.alert("UX Audit — Submit failed", message);
     } finally {
-      setBusy(false);
+      setSubmitting(false);
     }
   };
 
   const onClear = (): void => {
+    if (syncedCount === 0) {
+      Alert.alert(
+        "Nothing to clear",
+        "Clear only removes annotations the dashboard has already received. " +
+          "Drafts are kept so you don't lose unsent work."
+      );
+      return;
+    }
     Alert.alert(
-      "Clear session?",
-      "This deletes " +
-        annotations.length +
-        " annotation(s) from this device. Make sure you've exported first.",
+      "Clear submitted annotations?",
+      "Remove " +
+        syncedCount +
+        " annotation(s) the dashboard already has from this device. " +
+        "Drafts will be kept.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -105,7 +145,6 @@ export function SessionMenu(): React.ReactElement | null {
           style: "destructive",
           onPress: () => {
             void clearAnnotations();
-            setOpen(false);
           },
         },
       ]
@@ -113,6 +152,7 @@ export function SessionMenu(): React.ReactElement | null {
   };
 
   const onDelete = (ann: Annotation): void => {
+    if (statusOf(ann) === "synced") return; // locked
     Alert.alert(
       "Delete annotation?",
       "Remove this single annotation? This can't be undone.",
@@ -131,6 +171,7 @@ export function SessionMenu(): React.ReactElement | null {
   };
 
   const startEdit = (ann: Annotation): void => {
+    if (statusOf(ann) === "synced") return; // locked
     setEditingId(ann.id);
     setEditText(ann.note);
   };
@@ -141,19 +182,39 @@ export function SessionMenu(): React.ReactElement | null {
     setEditText("");
   };
 
-  const issuesLabel =
+  const totalLabel =
     annotations.length === 1 ? "1 issue" : annotations.length + " issues";
+
+  // The "submit" button's secondary line summarizes the state.
+  const submitDisabled = submitting || pendingCount + failedCount === 0;
+  let submitMainText: string;
+  let submitSubText: string;
+  if (!cloudConfigured) {
+    submitMainText = "Cloud sync not configured";
+    submitSubText =
+      "Pass projectKey and apiUrl to <ArchLensProvider>";
+  } else if (pendingCount + failedCount === 0) {
+    submitMainText = "All submitted";
+    submitSubText = "Nothing to submit. Capture more issues, then come back.";
+  } else {
+    submitMainText =
+      "Submit " + (pendingCount + failedCount) + " to dashboard";
+    submitSubText =
+      failedCount > 0
+        ? failedCount + " failed last time · " + pendingCount + " new draft"
+        : "Send everything in this session as one batch";
+  }
 
   return (
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={"Open UX Audit session — " + issuesLabel}
+        accessibilityLabel={"Open UX Audit session — " + totalLabel}
         style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         onPress={() => setOpen(true)}
       >
         <View style={styles.dot} />
-        <Text style={styles.pillText}>{issuesLabel}</Text>
+        <Text style={styles.pillText}>{totalLabel}</Text>
       </Pressable>
 
       <Modal
@@ -167,15 +228,15 @@ export function SessionMenu(): React.ReactElement | null {
             <View style={styles.handle} />
             <Text style={styles.sheetTitle}>UX Audit</Text>
             <Text style={styles.sheetSub}>
-              {annotations.length} issue
-              {annotations.length === 1 ? "" : "s"} across {groups.length}{" "}
-              screen{groups.length === 1 ? "" : "s"} · tap a note to edit
+              {pendingCount} draft · {syncedCount} submitted
+              {failedCount > 0 ? " · " + failedCount + " failed" : ""} · {" "}
+              {groups.length} screen{groups.length === 1 ? "" : "s"}
             </Text>
 
             {storageWarning ? (
               <View style={styles.warnBanner}>
                 <Text style={styles.warnText}>
-                  ⚠ Storage is getting full — export soon. Further captures
+                  ⚠ Storage is getting full — submit soon. Further captures
                   may not save reliably on some devices.
                 </Text>
               </View>
@@ -194,89 +255,138 @@ export function SessionMenu(): React.ReactElement | null {
                     <Text style={styles.groupCount}>{group.items.length}</Text>
                   </View>
 
-                  {group.items.map((ann) => (
-                    <View key={ann.id} style={styles.row}>
-                      <Image
-                        source={{
-                          uri: "data:image/png;base64," + ann.screenshotBase64,
-                        }}
-                        style={styles.thumb}
-                        resizeMode="cover"
-                        fadeDuration={0}
-                      />
-                      <View style={styles.rowBody}>
-                        <View style={styles.rowMetaLine}>
-                          <Text style={styles.rowMeta} numberOfLines={1}>
-                            #{numberById.get(ann.id)} ·{" "}
-                            {ann.element.componentName}
-                          </Text>
-                          {ann.category ? (
-                            <View style={styles.catChip}>
-                              <Text style={styles.catChipText}>
-                                {ann.category}
+                  {group.items.map((ann) => {
+                    const s = statusOf(ann);
+                    const locked = s === "synced";
+                    return (
+                      <View
+                        key={ann.id}
+                        style={[styles.row, locked && styles.rowLocked]}
+                      >
+                        <Image
+                          source={{
+                            uri:
+                              "data:image/png;base64," + ann.screenshotBase64,
+                          }}
+                          style={styles.thumb}
+                          resizeMode="cover"
+                          fadeDuration={0}
+                        />
+                        <View style={styles.rowBody}>
+                          <View style={styles.rowMetaLine}>
+                            <Text style={styles.rowMeta} numberOfLines={1}>
+                              #{numberById.get(ann.id)} ·{" "}
+                              {ann.element.componentName}
+                            </Text>
+                            {ann.category ? (
+                              <View style={styles.catChip}>
+                                <Text style={styles.catChipText}>
+                                  {ann.category}
+                                </Text>
+                              </View>
+                            ) : null}
+                            <View
+                              style={[
+                                styles.statusBadge,
+                                statusBadgeStyle(s),
+                              ]}
+                            >
+                              {s === "submitting" ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={statusFg(s)}
+                                />
+                              ) : null}
+                              <Text
+                                style={[
+                                  styles.statusText,
+                                  { color: statusFg(s) },
+                                ]}
+                              >
+                                {STATUS_LABEL[s]}
                               </Text>
                             </View>
+                          </View>
+
+                          {editingId === ann.id ? (
+                            <TextInput
+                              style={styles.editInput}
+                              value={editText}
+                              onChangeText={setEditText}
+                              onBlur={commitEdit}
+                              multiline
+                              autoFocus
+                              placeholder="Edit note…"
+                              placeholderTextColor="#999"
+                            />
+                          ) : (
+                            <Pressable
+                              onPress={() => startEdit(ann)}
+                              disabled={locked}
+                            >
+                              <Text
+                                style={[
+                                  styles.rowNote,
+                                  locked && styles.rowNoteLocked,
+                                ]}
+                                numberOfLines={3}
+                              >
+                                {ann.note ||
+                                  (locked
+                                    ? "(no note)"
+                                    : "(no note — tap to add)")}
+                              </Text>
+                            </Pressable>
+                          )}
+                          {s === "failed" && ann.syncError ? (
+                            <Text style={styles.errorText} numberOfLines={2}>
+                              {ann.syncError}
+                            </Text>
                           ) : null}
                         </View>
 
-                        {editingId === ann.id ? (
-                          <TextInput
-                            style={styles.editInput}
-                            value={editText}
-                            onChangeText={setEditText}
-                            onBlur={commitEdit}
-                            multiline
-                            autoFocus
-                            placeholder="Edit note…"
-                            placeholderTextColor="#999"
-                          />
-                        ) : (
-                          <Pressable onPress={() => startEdit(ann)}>
-                            <Text style={styles.rowNote} numberOfLines={3}>
-                              {ann.note || "(no note — tap to add)"}
-                            </Text>
+                        {!locked ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              "Delete annotation " + numberById.get(ann.id)
+                            }
+                            style={styles.deleteBtn}
+                            onPress={() => onDelete(ann)}
+                            hitSlop={8}
+                          >
+                            <Text style={styles.deleteX}>×</Text>
                           </Pressable>
-                        )}
+                        ) : null}
                       </View>
-
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          "Delete annotation " + numberById.get(ann.id)
-                        }
-                        style={styles.deleteBtn}
-                        onPress={() => onDelete(ann)}
-                        hitSlop={8}
-                      >
-                        <Text style={styles.deleteX}>×</Text>
-                      </Pressable>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               ))}
             </ScrollView>
 
+            {/* Submit to dashboard */}
             <Pressable
               accessibilityRole="button"
               style={({ pressed }) => [
                 styles.action,
-                pressed && styles.actionPressed,
+                submitDisabled && styles.actionDisabled,
+                pressed && !submitDisabled && styles.actionPressed,
               ]}
-              onPress={onExport}
-              disabled={busy}
+              onPress={onSubmit}
+              disabled={submitDisabled}
             >
-              {busy ? (
+              {submitting ? (
                 <ActivityIndicator size="small" color={colors.white} />
               ) : (
                 <>
-                  <Text style={styles.actionText}>Export & Share</Text>
-                  <Text style={styles.actionSubText}>
-                    Markdown + JSON, opens the share sheet
-                  </Text>
+                  <Text style={styles.actionText}>{submitMainText}</Text>
+                  <Text style={styles.actionSubText}>{submitSubText}</Text>
                 </>
               )}
             </Pressable>
 
+            {/* Clear submitted */}
             <Pressable
               accessibilityRole="button"
               style={({ pressed }) => [
@@ -285,13 +395,13 @@ export function SessionMenu(): React.ReactElement | null {
                 pressed && styles.actionPressed,
               ]}
               onPress={onClear}
-              disabled={busy}
+              disabled={submitting}
             >
               <Text style={[styles.actionText, styles.actionDangerText]}>
-                Clear session
+                Clear submitted
               </Text>
               <Text style={[styles.actionSubText, styles.actionDangerSub]}>
-                Delete all captured annotations from this device
+                Remove rows the dashboard already has · keeps drafts
               </Text>
             </Pressable>
 
@@ -307,6 +417,31 @@ export function SessionMenu(): React.ReactElement | null {
       </Modal>
     </>
   );
+}
+
+function statusBadgeStyle(s: SyncStatus): { backgroundColor: string } {
+  switch (s) {
+    case "synced":
+      return { backgroundColor: "#dcfce7" };
+    case "failed":
+      return { backgroundColor: "#fee2e2" };
+    case "submitting":
+      return { backgroundColor: "#e0e7ff" };
+    default:
+      return { backgroundColor: "#f3f4f6" };
+  }
+}
+function statusFg(s: SyncStatus): string {
+  switch (s) {
+    case "synced":
+      return "#15803d";
+    case "failed":
+      return "#b91c1c";
+    case "submitting":
+      return "#4338ca";
+    default:
+      return "#6b7280";
+  }
 }
 
 const styles = StyleSheet.create({
@@ -400,6 +535,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
+  rowLocked: { opacity: 0.78 },
   thumb: {
     width: 40,
     height: 64,
@@ -411,6 +547,7 @@ const styles = StyleSheet.create({
   rowMetaLine: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     marginBottom: 3,
     gap: 6,
   },
@@ -427,7 +564,25 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   catChipText: { fontSize: 10, fontWeight: "700", color: colors.highlight },
+
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.chip,
+  },
+  statusText: { fontSize: 10, fontWeight: "700" },
+
   rowNote: { fontSize: 13, color: "#111", lineHeight: 18 },
+  rowNoteLocked: { color: "#374151" },
+  errorText: {
+    fontSize: 11,
+    color: "#b91c1c",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
   editInput: {
     fontSize: 13,
     color: "#111",
@@ -462,6 +617,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
+  actionDisabled: { opacity: 0.5 },
   actionPressed: { opacity: 0.85 },
   actionDanger: { backgroundColor: colors.dangerSoft },
   actionText: { fontSize: 15, fontWeight: "700", color: colors.white },

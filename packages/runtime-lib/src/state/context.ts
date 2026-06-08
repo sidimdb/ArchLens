@@ -47,25 +47,63 @@ export interface ScreenDimensions {
 
 /**
  * The fixed set of UX issue categories a reviewer can tag an
- * annotation with. The UX module deliberately has no automated rules
- * (UX is subjective), so this lightweight taxonomy is what gives the
- * exported report structure — issues can be grouped and counted by
- * category without the tool ever passing judgement.
+ * annotation with. Based on classic UX heuristics (Nielsen-style +
+ * WCAG accessibility) so the captured audits read like a real
+ * usability evaluation, and filtering by category is meaningful for
+ * the dev team triaging in the dashboard.
+ *
+ * Labels are kept short so they fit in chips on small screens; the
+ * longer descriptions live in `UX_CATEGORY_DESCRIPTIONS` and are
+ * surfaced as a hint line in the note sheet so non-technical
+ * reviewers know what each chip means without having to guess.
  */
 export const UX_CATEGORIES = [
-  "Layout",
-  "Spacing",
-  "Visual",
-  "Copy",
   "Accessibility",
+  "Navigation",
+  "Hierarchy",
+  "Consistency",
+  "Feedback",
+  "Readability",
+  "Performance",
+  "Touch targets",
+  "Forms",
+  "Contrast",
   "Other",
 ] as const;
 
 export type UxCategory = (typeof UX_CATEGORIES)[number];
 
+/** Short, reviewer-friendly description for each category. */
+export const UX_CATEGORY_DESCRIPTIONS: Record<UxCategory, string> = {
+  Accessibility: "Screen reader, keyboard nav, missing labels",
+  Navigation: "Confusing flow, dead-end, missing back",
+  Hierarchy: "What's important isn't visually loudest",
+  Consistency: "Mixed styles, patterns done two ways",
+  Feedback: "No loading state, silent failure, no confirmation",
+  Readability: "Font too small, awkward copy, hard to read",
+  Performance: "Feels slow, no spinner, blank screen",
+  "Touch targets": "Buttons too small to tap reliably",
+  Forms: "Bad validation, missing labels, wrong keyboard",
+  Contrast: "Hard to read against the background",
+  Other: "Something else worth flagging",
+};
+
+/**
+ * Sync state for a single annotation in the offline outbox.
+ *
+ *   - `pending`    captured on the device, not yet sent.
+ *   - `submitting` in-flight to the cloud right now.
+ *   - `synced`     the dashboard has confirmed receipt. The annotation
+ *                  is now **immutable** on the device (and everywhere)
+ *                  — the chain-of-custody rule.
+ *   - `failed`     a previous submit attempt failed; will retry on
+ *                  the next "Submit to dashboard" press.
+ */
+export type SyncStatus = "pending" | "submitting" | "synced" | "failed";
+
 /** A single captured UX issue. */
 export interface Annotation {
-  /** Stable id (uuid-ish) used in the exported Markdown. */
+  /** Stable id (uuid-ish) — used as the on-device "client_id". */
   id: string;
   /** When captured (ms since epoch). */
   capturedAt: number;
@@ -73,6 +111,26 @@ export interface Annotation {
   note: string;
   /** Optional category tag chosen at save time. */
   category?: UxCategory;
+  /**
+   * Component-name breadcrumb from the screen down to the selected
+   * element, e.g. ["HomeScreen", "Card", "StatCard"]. Stored at
+   * capture time so the dashboard can show the context of where the
+   * issue lives without us having to walk the tree again.
+   */
+  hierarchyPath?: string[];
+  /**
+   * Derived element kind — "text", "button", "image", "input",
+   * "toggle", "list", "view", or "component". Inferred from the host
+   * primitives in the ancestor chain.
+   */
+  elementType?: string;
+  /**
+   * Sync state in the offline outbox. Missing on legacy rows captured
+   * before this field existed — treated as `pending`.
+   */
+  syncStatus?: SyncStatus;
+  /** Last sync error message, when `syncStatus === "failed"`. */
+  syncError?: string;
   /** Tapped element metadata. */
   element: ElementInfo;
   /** Base64-encoded PNG of the full screen at capture time. */
@@ -98,6 +156,10 @@ export interface PendingAnnotation {
   screenshotBase64: string;
   screenName: string;
   screenDimensions: ScreenDimensions;
+  /** See `Annotation.hierarchyPath`. */
+  hierarchyPath?: string[];
+  /** See `Annotation.elementType`. */
+  elementType?: string;
 }
 
 export interface ArchLensContextValue {
@@ -148,12 +210,15 @@ export interface ArchLensContextValue {
   updateAnnotationNote: (id: string, note: string) => Promise<void>;
 
   /**
-   * Build the Markdown + JSON report and open the system share
-   * sheet. The promise resolves once the sheet closes (or once we
-   * fall back to RN's text-only Share). Throws on hard I/O errors —
-   * caller should surface them to the reviewer.
+   * Submit every pending / failed annotation to the cloud dashboard
+   * as one batch. Marks each row `submitting` while in flight, then
+   * `synced` or `failed`. Throws if cloud sync is not configured on
+   * <ArchLensProvider>. Safe to retry — submitted issues are
+   * idempotent server-side, and synced rows are skipped.
    */
-  exportSession: () => Promise<void>;
+  submitToDashboard: () => Promise<void>;
+  /** True iff cloud sync is configured on the provider. */
+  cloudConfigured: boolean;
 }
 
 export const ArchLensContext = createContext<ArchLensContextValue | null>(

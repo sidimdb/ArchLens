@@ -9,7 +9,9 @@
     "packages/statik-frontend",
     "packages/runtime-lib",
     "packages/runtime-verify",
-    "packages/runtime-demo"
+    "packages/runtime-demo",
+    "packages/cloud-api",
+    "packages/dashboard-web"
   ],
   "scripts": {
     "statik:backend:dev": "npm run dev -w @archlens/statik-backend",
@@ -20,6 +22,11 @@
     "runtime:lib:typecheck": "npm run typecheck -w @archlens/runtime",
     "runtime:verify:dev": "npm run dev -w @archlens/verify",
     "runtime:verify:build": "npm run build -w @archlens/verify",
+    "cloud:api:dev": "npm run dev -w @archlens/cloud-api",
+    "cloud:api:typecheck": "npm run typecheck -w @archlens/cloud-api",
+    "dashboard:dev": "npm run dev -w @archlens/dashboard-web",
+    "dashboard:build": "npm run build -w @archlens/dashboard-web",
+    "dashboard:typecheck": "npm run typecheck -w @archlens/dashboard-web",
     "test:statik": "npm test -w @archlens/statik-backend",
     "typecheck": "npm run typecheck --workspaces --if-present"
   }

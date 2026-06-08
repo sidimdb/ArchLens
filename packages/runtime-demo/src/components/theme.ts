@@ -14,12 +14,18 @@ export const palette = {
   inkSoft: "#475569",
   muted: "#94A3B8",
   border: "#E2E8F0",
-  primary: "#3B82F6",
-  primaryDark: "#2563EB",
+  // Monochrome primary — same dark slate as `ink`. Picking a near-
+  // black instead of a saturated brand color keeps the demo looking
+  // editorial / black-and-white instead of generic-SaaS-blue.
+  primary: "#0F172A",
+  primaryDark: "#000000",
   success: "#16A34A",
   warning: "#F59E0B",
   danger: "#EF4444",
-  accent: "#8B5CF6",
+  // `accent` is still used by a couple of QuickAction tiles to keep
+  // the grid from being totally monochrome. Set to the dark ink too
+  // so the app stays in black/white territory.
+  accent: "#0F172A",
   white: "#FFFFFF",
 } as const;
 

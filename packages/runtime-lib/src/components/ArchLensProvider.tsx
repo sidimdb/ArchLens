@@ -4,21 +4,24 @@
  * The single component a host React Native app needs to wrap its
  * root in:
  *
- *   <ArchLensProvider>
+ *   <ArchLensProvider
+ *     projectKey="archlens_pk_live_..."
+ *     apiUrl="https://api.archlens.io"
+ *   >
  *     <YourApp />
  *   </ArchLensProvider>
  *
  * Behavior:
- * - In production builds (`__DEV__ === false`), the provider is a
- *   pass-through. It MUST add zero overhead to shipped apps.
- * - In dev builds, it sets up the session context, mounts the
- *   floating annotation button, the tap-catching annotation
- *   overlay, and the note input modal — all positioned over the
- *   host app.
- *
- * Phase 2 wires the full annotation flow end-to-end:
- *   FAB tap → overlay → element tap → screenshot + identify →
- *   pending state → NoteModal → saveAnnotation() → AsyncStorage.
+ * - By default the provider is active in dev builds and a no-op in
+ *   production — so the App Store version of an app ships with zero
+ *   audit-tool overhead.
+ * - The `enabled` prop overrides this — set it `true` to keep the
+ *   audit active in a production build (the "reviewer build" pattern:
+ *   one signed build distributed via TestFlight / APK / EAS internal
+ *   testing, with the env flag flipped on, sent to non-technical
+ *   reviewers). Set `false` to force it off even in dev.
+ * - Cloud config is optional. Without it, capture still works
+ *   locally; the "Submit to dashboard" action just isn't available.
  */
 
 import React, {
@@ -29,7 +32,7 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, Platform, StyleSheet, View } from "react-native";
 import {
   ArchLensContext,
   type Annotation,
@@ -43,7 +46,7 @@ import {
   estimateStorageBytes,
   STORAGE_WARN_BYTES,
 } from "../state/persistence";
-import { exportAndShareSession } from "../export/share";
+import { submitAnnotationsToCloud } from "../cloud/sync";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 import { FloatingButton } from "./FloatingButton";
 import { NoteModal } from "./NoteModal";
@@ -52,38 +55,58 @@ import { SessionMenu } from "./SessionMenu";
 export interface ArchLensProviderProps {
   children: ReactNode;
   /**
-   * Friendly project name shown in the exported report header.
-   * Defaults to "Untitled project" if omitted.
+   * Friendly project name shown alongside the session in the dashboard.
+   * Optional metadata only.
    */
   projectName?: string;
   /**
-   * Force ArchLens off even in development. By default the tool is
-   * active whenever `__DEV__` is true and hidden in production. Some
-   * teams ship a "staging" / "preview" build that is technically a
-   * dev build (`__DEV__ === true`) but should look like a release —
-   * set `disabled` for those so the floating button never appears.
+   * Master switch for the audit tool.
    *
-   * Defaults to false (active in dev). Often wired to an env flag,
-   * e.g. `disabled={process.env.APP_ENV === "staging"}`.
+   *   - `undefined` (default): active iff `__DEV__` is true. The App
+   *     Store version of your customer's app ships with the tool
+   *     completely inert — zero overhead.
+   *   - `true`: active regardless of `__DEV__`. Use this for the
+   *     "reviewer build" — a production-signed build distributed
+   *     via TestFlight / APK / EAS internal so non-technical clients
+   *     can audit the real app.
+   *   - `false`: inactive regardless of `__DEV__`. Use this to hide
+   *     the tool in a staging build that should look like release.
+   *
+   * Typically wired to an env flag, e.g.
+   * `enabled={process.env.EXPO_PUBLIC_ARCHLENS_AUDIT === "on"}`.
    */
-  disabled?: boolean;
+  enabled?: boolean;
+
+  // ── Cloud sync configuration ─────────────────────────────────────
+  // Both required for sync to be enabled. Missing either =
+  // capture-only mode (the Submit button is disabled with an
+  // explanatory tooltip).
+  /** Project key from the dashboard, e.g. "archlens_pk_live_…". */
+  projectKey?: string;
+  /** Base URL of the ArchLens cloud API, e.g. "https://api.archlens.io". */
+  apiUrl?: string;
+  /** Optional human label shown next to the audit session in the dashboard. */
+  reviewerLabel?: string;
+  /** Optional app version string shown in the dashboard (helps correlate fixes). */
+  appVersion?: string;
 }
 
-export function ArchLensProvider({
-  children,
-  projectName,
-  disabled = false,
-}: ArchLensProviderProps): React.ReactElement {
-  // Active only in dev builds, and only when not explicitly disabled.
-  if (!__DEV__ || disabled) {
-    return <>{children}</>;
+export function ArchLensProvider(props: ArchLensProviderProps): React.ReactElement {
+  // `enabled` is the master switch; default is `__DEV__` so prod
+  // builds are pass-throughs unless someone opts in.
+  const active = props.enabled === undefined ? __DEV__ : props.enabled;
+  if (!active) {
+    return <>{props.children}</>;
   }
-  return <DevProvider projectName={projectName}>{children}</DevProvider>;
+  return <DevProvider {...props} />;
 }
 
 function DevProvider({
   children,
-  projectName,
+  projectKey,
+  apiUrl,
+  reviewerLabel,
+  appVersion,
 }: ArchLensProviderProps): React.ReactElement {
   // appRef: wraps ONLY the host app's children. The annotation
   // overlay, session menu, and FAB are mounted as siblings of the
@@ -97,19 +120,29 @@ function DevProvider({
   const [pending, setPending] = useState<PendingAnnotation | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [storageWarning, setStorageWarning] = useState<boolean>(false);
-  // Tracks whether the one-time popup has already fired, so we don't
-  // nag on every subsequent save once we're over the threshold.
   const warnedRef = useRef<boolean>(false);
 
-  // Hydrate from AsyncStorage on mount so a reviewer can resume a
-  // previous session. Failures are silent — empty session is fine.
+  const cloudConfigured = Boolean(projectKey && apiUrl);
+
+  // Hydrate from AsyncStorage on mount, normalizing any annotation
+  // that was mid-submit when the app was last killed back to "failed"
+  // so the next Submit retries it.
   useEffect(() => {
     let alive = true;
     void loadAnnotations().then((stored) => {
-      if (alive && stored.length > 0) {
-        setAnnotations(stored);
-        // Restore the warning state if a resumed session is already big.
-        if (estimateStorageBytes(stored) >= STORAGE_WARN_BYTES) {
+      if (!alive) return;
+      const normalized = stored.map((a) =>
+        a.syncStatus === "submitting"
+          ? { ...a, syncStatus: "failed" as const, syncError: "Interrupted" }
+          : a
+      );
+      if (normalized.length > 0) {
+        setAnnotations(normalized);
+        // Persist the normalization so we don't keep flipping it on every load.
+        if (normalized.some((a, i) => a.syncStatus !== stored[i]!.syncStatus)) {
+          void saveAnnotations(normalized);
+        }
+        if (estimateStorageBytes(normalized) >= STORAGE_WARN_BYTES) {
           setStorageWarning(true);
           warnedRef.current = true;
         }
@@ -120,12 +153,6 @@ function DevProvider({
     };
   }, []);
 
-  /**
-   * Recompute the storage-size warning after the annotation set
-   * changes. Sets the persistent flag (drives the session-menu
-   * reminder line) and fires a one-time popup the first time we
-   * cross the threshold.
-   */
   const evaluateStorageWarning = useCallback(
     (next: Annotation[]): void => {
       const over = estimateStorageBytes(next) >= STORAGE_WARN_BYTES;
@@ -135,7 +162,7 @@ function DevProvider({
         Alert.alert(
           "ArchLens — storage getting full",
           "This session is approaching the device's storage limit. " +
-            "Export your annotations soon — further captures may not " +
+            "Submit your annotations soon — further captures may not " +
             "save reliably.",
           [{ text: "OK" }]
         );
@@ -162,11 +189,13 @@ function DevProvider({
         screenshotBase64: pending.screenshotBase64,
         screenName: pending.screenName,
         screenDimensions: pending.screenDimensions,
+        hierarchyPath: pending.hierarchyPath,
+        elementType: pending.elementType,
+        syncStatus: "pending",
       };
 
       setAnnotations((prev) => {
         const next = [...prev, annotation];
-        // Persist outside React's commit so we don't block render.
         void saveAnnotations(next);
         evaluateStorageWarning(next);
         return next;
@@ -177,15 +206,35 @@ function DevProvider({
   );
 
   const clearAnnotations = useCallback(async (): Promise<void> => {
-    setAnnotations([]);
-    setStorageWarning(false);
-    warnedRef.current = false;
-    await clearStoredAnnotations();
-  }, []);
+    // Only wipes submitted rows by default — protects drafts from
+    // being lost on an accidental "Clear".
+    let removed = 0;
+    setAnnotations((prev) => {
+      const next = prev.filter((a) => a.syncStatus !== "synced");
+      removed = prev.length - next.length;
+      if (next.length === 0) {
+        void clearStoredAnnotations();
+      } else {
+        void saveAnnotations(next);
+      }
+      evaluateStorageWarning(next);
+      return next;
+    });
+    if (removed === 0) {
+      // Nothing to clear; surface a soft hint so the button doesn't feel broken.
+      Alert.alert(
+        "Nothing to clear",
+        "Clear only removes annotations that have already been submitted to the dashboard. " +
+          "Drafts are kept so you don't lose unsent work."
+      );
+    }
+  }, [evaluateStorageWarning]);
 
   const deleteAnnotation = useCallback(
     async (id: string): Promise<void> => {
       setAnnotations((prev) => {
+        const target = prev.find((a) => a.id === id);
+        if (target?.syncStatus === "synced") return prev; // immutable
         const next = prev.filter((a) => a.id !== id);
         void saveAnnotations(next);
         evaluateStorageWarning(next);
@@ -198,6 +247,8 @@ function DevProvider({
   const updateAnnotationNote = useCallback(
     async (id: string, note: string): Promise<void> => {
       setAnnotations((prev) => {
+        const target = prev.find((a) => a.id === id);
+        if (target?.syncStatus === "synced") return prev; // immutable
         const next = prev.map((a) => (a.id === id ? { ...a, note } : a));
         void saveAnnotations(next);
         return next;
@@ -206,11 +257,77 @@ function DevProvider({
     []
   );
 
-  const exportSession = useCallback(async (): Promise<void> => {
-    await exportAndShareSession(annotations, {
-      projectName: projectName ?? "Untitled project",
+  const submitToDashboard = useCallback(async (): Promise<void> => {
+    if (!cloudConfigured || !projectKey || !apiUrl) {
+      throw new Error(
+        "Cloud sync is not configured. Pass projectKey and apiUrl to " +
+          "<ArchLensProvider>."
+      );
+    }
+
+    // Snapshot what needs sending now.
+    const toSubmit = annotations.filter(
+      (a) => a.syncStatus !== "synced" && a.syncStatus !== "submitting"
+    );
+    if (toSubmit.length === 0) return;
+
+    // Mark them submitting immediately so the UI reflects state.
+    setAnnotations((prev) => {
+      const submittingIds = new Set(toSubmit.map((a) => a.id));
+      const next = prev.map((a) =>
+        submittingIds.has(a.id)
+          ? { ...a, syncStatus: "submitting" as const, syncError: undefined }
+          : a
+      );
+      void saveAnnotations(next);
+      return next;
     });
-  }, [annotations, projectName]);
+
+    let result;
+    try {
+      result = await submitAnnotationsToCloud(toSubmit, {
+        apiUrl,
+        projectKey,
+        reviewerLabel,
+        appVersion,
+        deviceLabel: Platform.OS + " · " + String(Platform.Version),
+      });
+    } catch (err) {
+      // Whole-batch failure (e.g. couldn't open the session). Revert
+      // all submitting rows to failed so they can be retried.
+      const message = err instanceof Error ? err.message : String(err);
+      setAnnotations((prev) => {
+        const next = prev.map((a) =>
+          a.syncStatus === "submitting"
+            ? { ...a, syncStatus: "failed" as const, syncError: message }
+            : a
+        );
+        void saveAnnotations(next);
+        return next;
+      });
+      throw err;
+    }
+
+    // Apply per-issue outcomes.
+    setAnnotations((prev) => {
+      const next = prev.map((a) => {
+        const r = result.perIssue.find((x) => x.annotationId === a.id);
+        if (!r) return a;
+        return r.status === "synced"
+          ? { ...a, syncStatus: "synced" as const, syncError: undefined }
+          : { ...a, syncStatus: "failed" as const, syncError: r.error };
+      });
+      void saveAnnotations(next);
+      return next;
+    });
+  }, [
+    annotations,
+    cloudConfigured,
+    projectKey,
+    apiUrl,
+    reviewerLabel,
+    appVersion,
+  ]);
 
   const value = useMemo<ArchLensContextValue>(
     () => ({
@@ -226,7 +343,8 @@ function DevProvider({
       clearAnnotations,
       deleteAnnotation,
       updateAnnotationNote,
-      exportSession,
+      submitToDashboard,
+      cloudConfigured,
     }),
     [
       isAnnotating,
@@ -239,18 +357,14 @@ function DevProvider({
       clearAnnotations,
       deleteAnnotation,
       updateAnnotationNote,
-      exportSession,
+      submitToDashboard,
+      cloudConfigured,
     ]
   );
 
   return (
     <ArchLensContext.Provider value={value}>
       <View style={styles.outer} collapsable={false}>
-        {/*
-          appRef wraps just the host children. We use it for both
-          screenshot capture AND element identification, so neither
-          step picks up our overlay/FAB.
-        */}
         <View style={styles.app} collapsable={false} ref={appRef}>
           {children}
         </View>

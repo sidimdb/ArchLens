@@ -22,12 +22,24 @@ import React, { useEffect, useState, type RefObject } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  LayoutAnimation,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  UIManager,
   View,
   type GestureResponderEvent,
 } from "react-native";
+
+// LayoutAnimation works on iOS out of the box, but Android needs an
+// explicit opt-in. Safe to call multiple times; UIManager guards.
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { captureScreenshot } from "../capture/screenshot";
 import { identifyHierarchyAtPoint } from "../identify/identifyAtPoint";
 import { getCurrentScreenName } from "../integrations/navigation";
@@ -63,11 +75,38 @@ export function AnnotationOverlay({
   const [busy, setBusy] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [refine, setRefine] = useState<RefineState | null>(null);
+  // Where the inspector control bar sits. Auto-flips to "top" when the
+  // selected element is near the bottom of the screen so the bar
+  // never covers the highlight box. See `computeBarPosition` below.
+  const [barAtTop, setBarAtTop] = useState<boolean>(false);
 
   // Drop any in-progress refinement if annotation mode is turned off.
   useEffect(() => {
     if (!isAnnotating) setRefine(null);
   }, [isAnnotating]);
+
+  // Reset the bar to "bottom" each time a fresh refine starts.
+  useEffect(() => {
+    if (refine === null) setBarAtTop(false);
+  }, [refine === null]);
+
+  // Auto-flip on selection change. Hysteresis (different thresholds
+  // for "flip up" vs "flip back down") keeps the bar from oscillating
+  // when bounds hover near the boundary.
+  useEffect(() => {
+    if (!refine) return;
+    const current = refine.candidates[refine.index];
+    if (!current) return;
+    const next = computeBarPosition(current.bounds, barAtTop);
+    if (next !== barAtTop) {
+      LayoutAnimation.configureNext({
+        duration: 220,
+        update: { type: "easeInEaseOut" },
+        create: { type: "easeInEaseOut", property: "opacity" },
+      });
+      setBarAtTop(next);
+    }
+  }, [refine, barAtTop]);
 
   // Tell the rest of the UI (the FAB) when the control bar is up so it
   // can get out of the way.
@@ -123,6 +162,15 @@ export function AnnotationOverlay({
       setRefine((r) => (r ? { ...r, index: Math.max(r.index - 1, 0) } : r));
 
     const onConfirm = (): void => {
+      // Breadcrumb from screen root down to the selected element.
+      // candidates is leaf→root; everything from `index` onward is
+      // the selected element + its ancestors; reverse → root → leaf.
+      const hierarchyPath = refine.candidates
+        .slice(refine.index)
+        .reverse()
+        .map((c) => c.componentName);
+      const elementType = inferElementType(refine.candidates);
+
       const annotation: PendingAnnotation = {
         id: makeId(),
         capturedAt: Date.now(),
@@ -130,6 +178,8 @@ export function AnnotationOverlay({
         screenshotBase64: refine.screenshotBase64,
         screenName: refine.screenName,
         screenDimensions: refine.screenDimensions,
+        hierarchyPath,
+        elementType,
       };
       setRefine(null);
       setPending(annotation);
@@ -147,11 +197,32 @@ export function AnnotationOverlay({
 
     return (
       <View style={styles.root} pointerEvents="box-none">
+        {/*
+          Touch absorber — locks the host app while the inspector is
+          up. The user can interact with the control bar (its
+          Pressables claim the responder first as the deepest target),
+          but every other tap, drag, or scroll gesture is swallowed
+          here and never reaches the host. This keeps the highlight
+          box always aligned with the element underneath; the only
+          way to navigate the host is Cancel → re-tap.
+        */}
+        <View
+          style={StyleSheet.absoluteFillObject}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderTerminationRequest={() => false}
+        />
         <Spotlight bounds={current.bounds} />
         <ElementTag bounds={current.bounds} name={current.componentName} />
 
-        {/* Inspector control bar */}
-        <View style={styles.controlBar}>
+        {/* Inspector control bar — position auto-flips when the
+            selected element would otherwise be covered. */}
+        <View
+          style={[
+            styles.controlBar,
+            barAtTop ? styles.controlBarTop : styles.controlBarBottom,
+          ]}
+        >
           <View style={styles.barHeader}>
             <View style={styles.headerLeft}>
               <View style={styles.liveDot} />
@@ -269,10 +340,16 @@ function Spotlight({
   bounds: ElementInfo["bounds"];
 }): React.ReactElement {
   const { width: W, height: H } = Dimensions.get("window");
-  const x = Math.max(0, bounds.x);
-  const y = Math.max(0, bounds.y);
-  const w = Math.max(0, Math.min(bounds.width, W - x));
-  const h = Math.max(0, Math.min(bounds.height, H - y));
+  // Snap bounds to whole pixels. RN's renderer (especially on Android)
+  // rasterizes integer-pixel native views; if we draw the highlight at
+  // a subpixel position the visible result can look 1–2 px off and
+  // gaps appear between the four scrim rects and the highlight box.
+  // Rounding eliminates that visual mismatch without changing the
+  // stored bounds (those remain precise for the dashboard).
+  const x = Math.round(Math.max(0, bounds.x));
+  const y = Math.round(Math.max(0, bounds.y));
+  const w = Math.round(Math.max(0, Math.min(bounds.width, W - x)));
+  const h = Math.round(Math.max(0, Math.min(bounds.height, H - y)));
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -308,10 +385,15 @@ function ElementTag({
   name: string;
 }): React.ReactElement {
   const { height: H } = Dimensions.get("window");
-  const x = Math.max(6, bounds.x);
+  // Same pixel-snap as Spotlight so the tag sits flush against the box.
+  const x = Math.round(Math.max(6, bounds.x));
   // Prefer above the box; flip below if it would clip off the top.
   const above = bounds.y > 34;
-  const top = above ? Math.max(0, bounds.y - 28) : Math.min(H - 28, bounds.y + bounds.height + 6);
+  const top = Math.round(
+    above
+      ? Math.max(0, bounds.y - 28)
+      : Math.min(H - 28, bounds.y + bounds.height + 6)
+  );
   return (
     <View style={[styles.tag, { left: x, top }]} pointerEvents="none">
       <Text style={styles.tagText} numberOfLines={1}>
@@ -361,6 +443,88 @@ function makeId(): string {
     "_" +
     Math.random().toString(36).slice(2, 8)
   );
+}
+
+/**
+ * Best-effort element-kind classification from the candidate chain.
+ * Walks from leaf-most upward, returns the first match. Useful for
+ * dashboard filtering and at-a-glance scanning ("text vs button vs
+ * image"). Falls back to "component" if nothing matches.
+ */
+function inferElementType(candidates: ElementInfo[]): string {
+  for (const c of candidates) {
+    const n = c.componentName;
+    if (n === "Text" || n === "RCTText") return "text";
+    if (n === "Image" || n === "RCTImage" || n === "ImageBackground") {
+      return "image";
+    }
+    if (
+      n === "Pressable" ||
+      n === "Button" ||
+      n === "TouchableOpacity" ||
+      n === "TouchableHighlight" ||
+      n === "TouchableWithoutFeedback" ||
+      n === "TouchableNativeFeedback"
+    ) {
+      return "button";
+    }
+    if (n === "TextInput" || n === "RCTTextInput") return "input";
+    if (n === "Switch") return "toggle";
+    if (
+      n === "ScrollView" ||
+      n === "RCTScrollView" ||
+      n === "FlatList" ||
+      n === "SectionList"
+    ) {
+      return "list";
+    }
+  }
+  return "component";
+}
+
+/**
+ * Decide whether the inspector control bar should sit at the bottom
+ * (default) or flip to the top to avoid covering the selected element.
+ *
+ * Hysteresis: the "flip up" threshold is more aggressive than the
+ * "flip back down" threshold, so a small change in selection that
+ * straddles the boundary doesn't cause the bar to bounce.
+ *
+ * If the selected element is genuinely huge (covers both ends of the
+ * screen — e.g. the whole "screen" rung), keep the bar at the
+ * bottom: there's nowhere it can sit that doesn't overlap, and the
+ * bottom is the standard place users expect it.
+ */
+function computeBarPosition(
+  bounds: ElementInfo["bounds"],
+  currentAtTop: boolean
+): boolean {
+  const { height: screenHeight } = Dimensions.get("window");
+  // Rough vertical footprint of the bar at each position.
+  const BAR_FOOTPRINT_BOTTOM = 240; // bottom area the bar occupies
+  const BAR_FOOTPRINT_TOP = 130; // top area when flipped (status bar + bar)
+
+  const elementBottom = bounds.y + bounds.height;
+  const elementTop = bounds.y;
+
+  const bottomBlocked = elementBottom > screenHeight - BAR_FOOTPRINT_BOTTOM;
+  const topBlocked = elementTop < BAR_FOOTPRINT_TOP;
+
+  if (currentAtTop) {
+    // Sticky: only flip back to bottom once the element has clearly
+    // cleared the bottom zone (extra ~70px buffer).
+    const clearedBottom =
+      elementBottom < screenHeight - BAR_FOOTPRINT_BOTTOM - 70;
+    if (clearedBottom) return false;
+    // If staying at top would now cover the element, prefer bottom
+    // (better-of-two-evils for the giant-element case).
+    if (topBlocked && !bottomBlocked) return false;
+    return true;
+  }
+
+  // Currently at bottom.
+  if (bottomBlocked && !topBlocked) return true;
+  return false;
 }
 
 const styles = StyleSheet.create({
@@ -450,7 +614,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 12,
     right: 12,
-    bottom: 20,
     backgroundColor: colors.ink,
     borderRadius: radius.card,
     paddingHorizontal: 14,
@@ -460,6 +623,10 @@ const styles = StyleSheet.create({
     zIndex: layers.controlBar,
     ...shadow.float,
   },
+  controlBarBottom: { bottom: 20 },
+  // Sits below the status bar / notch area on most phones; 50 is a
+  // safe default without pulling in safe-area-context here.
+  controlBarTop: { top: 50 },
   barHeader: {
     flexDirection: "row",
     alignItems: "center",

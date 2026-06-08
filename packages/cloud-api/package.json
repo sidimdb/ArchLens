@@ -1,0 +1,25 @@
+{
+  "name": "@archlens/cloud-api",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ArchLens cloud API — the HTTP service between the runtime SDK and Supabase. Validates project keys, uploads screenshots, inserts issues using service_role.",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "pino-pretty": "^11.2.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.2"
+  }
+}

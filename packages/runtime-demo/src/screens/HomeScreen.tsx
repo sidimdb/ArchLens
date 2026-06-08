@@ -2,21 +2,18 @@
  * Home / Dashboard screen.
  *
  * A realistic fitness dashboard: greeting header, goal progress, stat
- * tiles, a quick-action grid, a promo banner, and a recent-activity
- * list. Lots of nested, varied, tappable elements — ideal for
- * exercising the UX-audit inspector (deep parent/child traversal,
- * component+source identification, category tagging).
- *
- * 🎯 Planted UX issue: the promo banner's "Upgrade" button is 70×16 px,
- * far below the 44×44 minimum touch target.
+ * tiles, a quick-action grid, and a recent-activity list. Lots of
+ * nested, varied, tappable elements — ideal for exercising the
+ * UX-audit inspector (deep parent/child traversal, component+source
+ * identification, category tagging).
  */
 
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
-import { palette, radii, spacing } from "../components/theme";
+import { palette, spacing } from "../components/theme";
 import {
   Avatar,
   Card,
@@ -79,20 +76,6 @@ export function HomeScreen(): React.ReactElement {
         <QuickAction icon="😴" label="Sleep" accent={palette.accent} />
       </View>
 
-      {/* Promo banner — contains the planted tiny-button issue */}
-      <View style={styles.promo}>
-        <View style={styles.promoBody}>
-          <Text style={styles.promoTitle}>Go Premium</Text>
-          <Text style={styles.promoText}>
-            Unlock advanced insights and custom plans.
-          </Text>
-        </View>
-        {/* 🎯 Tiny touch target — planted issue */}
-        <Pressable style={styles.tinyBtn} onPress={() => nav.navigate("About")}>
-          <Text style={styles.tinyBtnText}>Upgrade</Text>
-        </Pressable>
-      </View>
-
       {/* Recent activity */}
       <SectionHeader title="Recent activity" action="See all" onActionPress={() => nav.navigate("Notifications")} />
       <Card>
@@ -143,26 +126,4 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
-  promo: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: palette.ink,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    marginTop: spacing.xl,
-  },
-  promoBody: { flex: 1, paddingRight: spacing.md },
-  promoTitle: { fontSize: 16, fontWeight: "800", color: palette.white },
-  promoText: { fontSize: 13, color: "rgba(255,255,255,0.7)", marginTop: 2 },
-  // 🎯 Planted issue: far below the 44×44 minimum touch target.
-  tinyBtn: {
-    width: 70,
-    height: 16,
-    backgroundColor: palette.primary,
-    borderRadius: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tinyBtnText: { color: palette.white, fontSize: 9, fontWeight: "700" },
 });

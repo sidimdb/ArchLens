@@ -35,9 +35,32 @@
  */
 
 import type { RefObject } from "react";
-import { Dimensions, findNodeHandle } from "react-native";
+import {
+  Dimensions,
+  findNodeHandle,
+  Platform,
+  StatusBar,
+  UIManager,
+} from "react-native";
 import type { View } from "react-native";
 import type { ElementBounds, ElementInfo } from "../state/context";
+
+/**
+ * On Android, the touch event's pageY is reported in screen
+ * coordinates (status-bar-inclusive), but `measureInWindow` returns
+ * y relative to the RN window (status-bar-EXCLUSIVE). That makes
+ * parent highlight boxes appear status-bar-px higher than the actual
+ * element. Adding the status-bar height brings the measure result
+ * into the same space as the touch / leaf data.frame.
+ *
+ * Sign was confirmed empirically: user reports parent squares are
+ * "consistently more up" by ~one status-bar height.
+ *
+ * iOS doesn't have this discrepancy — `currentHeight` is undefined
+ * there and the offset is zero.
+ */
+const ANDROID_Y_ADJUST =
+  Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
 
 /**
  * The shape returned by RN's inspector helper. We type it loosely —
@@ -582,7 +605,12 @@ function measureEntry(
         if (done) return;
         done = true;
         clearTimeout(timer);
-        const measured = { x: pageX, y: pageY, width, height };
+        const measured = {
+          x: pageX,
+          y: pageY + ANDROID_Y_ADJUST,
+          width,
+          height,
+        };
         resolve(isPlausibleBox(measured, point, screen) ? measured : fromFrame);
       });
     } catch {
@@ -698,12 +726,11 @@ function measurableInstance(sn: any): any {
 
 /** A `measure` bound to the fiber's host node, when it has one. */
 function fiberMeasure(fiber: any): MeasureFn | undefined {
+  // Strategy 1: measureInWindow / measure on the canonical or
+  // publicInstance. Works reliably on iOS Fabric; less reliable on
+  // some Android Fabric setups (some fibers expose neither method).
   const target = measurableInstance(fiber?.stateNode);
-  if (!target) return undefined;
-  // Prefer measureInWindow — it returns window-absolute coordinates
-  // directly. Normalize both shapes to the (x, y, w, h, pageX, pageY)
-  // callback the rest of the pipeline expects.
-  if (typeof target.measureInWindow === "function") {
+  if (target && typeof target.measureInWindow === "function") {
     return (cb) => {
       try {
         target.measureInWindow((x: number, y: number, w: number, h: number) =>
@@ -714,13 +741,38 @@ function fiberMeasure(fiber: any): MeasureFn | undefined {
       }
     };
   }
-  return (cb) => {
-    try {
-      target.measure(cb);
-    } catch {
-      /* swallow */
+  if (target && typeof target.measure === "function") {
+    return (cb) => {
+      try {
+        target.measure(cb);
+      } catch {
+        /* swallow */
+      }
+    };
+  }
+  // Strategy 2 (Android safety net): the public UIManager API can
+  // measure any host fiber given a node handle, and it works on some
+  // Android fibers where the canonical path comes back empty. This is
+  // the path that should recover the "skipped to screen" cases.
+  try {
+    const handle = findNodeHandle(fiber?.stateNode);
+    if (typeof handle === "number" && handle > 0) {
+      return (cb) => {
+        try {
+          UIManager.measureInWindow(
+            handle,
+            (x: number, y: number, w: number, h: number) =>
+              cb(0, 0, w, h, x, y)
+          );
+        } catch {
+          /* swallow */
+        }
+      };
     }
-  };
+  } catch {
+    /* fall through */
+  }
+  return undefined;
 }
 
 /**
@@ -835,12 +887,47 @@ async function buildHierarchyPick(
     bounds: c.bounds,
   }));
 
-  // Return leaf → root so index 0 is the most specific element. Start
-  // the selection on that leaf — the exact element under the finger —
-  // so refinement always begins at "what you tapped" and steps UP from
-  // there, matching the reviewer's mental model.
+  // Make the topmost rung actually mean "the whole visible screen".
+  //
+  // On iOS the React tree wraps the entire window, so the top user-
+  // component's measured bounds already cover everything. On Android
+  // the native navigator header lives outside React, so the topmost
+  // rung's measured bounds only cover the content area below it —
+  // which makes the highlight "end early" at the bottom (and start
+  // late at the top). Clamping to the window puts both platforms on
+  // equal footing: "whole screen" highlights the whole visible screen.
+  if (rootToLeaf.length > 0) {
+    const top = rootToLeaf[0]!;
+    rootToLeaf[0] = {
+      ...top,
+      bounds: { x: 0, y: 0, width: screen.w, height: screen.h },
+    };
+  }
+
+  // Return leaf → root so index 0 is the most specific element.
   const candidates = [...rootToLeaf].reverse();
-  return { candidates, bestIndex: 0 };
+
+  // Pick a default selection that's actually *useful* to the developer
+  // who'll fix the issue. The leaf is usually a host primitive like
+  // <Text> or <View> — precise visually, but with no `fileName`, so
+  // the dashboard ends up showing "no source". Instead we land on the
+  // deepest *user component* that carries source info (StatCard,
+  // ListRow, etc.), so every captured issue gets a real file:line
+  // pointer by default. The reviewer can still step ▼ Child to drop
+  // down to the host leaf when they want pixel-precise pointing.
+  //
+  // The topmost rung (the whole-screen rung) is excluded as a default
+  // — landing on a full-screen highlight every time would feel jarring.
+  // If only the topmost has source, we keep the leaf as default.
+  let bestIndex = 0;
+  const maxAutoIndex = Math.max(0, candidates.length - 2);
+  for (let i = 0; i <= maxAutoIndex; i++) {
+    if (candidates[i]?.fileName) {
+      bestIndex = i;
+      break;
+    }
+  }
+  return { candidates, bestIndex };
 }
 
 /**
