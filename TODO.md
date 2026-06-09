@@ -1,16 +1,35 @@
 # ArchLens — TODO
 
 Outstanding work, grouped by priority. Items are de-duplicated against
-already-shipped features; everything here is genuinely not done yet.
+already-shipped features.
 
 > **Convention:** `[ ]` = open, `[x]` = done, `[~]` = in progress.
 
 ---
 
-## 🔴 Must do — real gaps before jury defense
+## Status — June 2026
+
+**All items in this file are now shipped.**
+
+The full pipeline — `statik` analyzer, `runtime` SDK, cloud API,
+dashboard, AI enrichment, three test apps, eight architectural rules,
+deterministic scoring — is in place and working end-to-end. The README
+has been brought up to date with the new architecture, the demo videos,
+the screenshots, and the test apps' expected scores.
+
+Anything still on the radar — TypeScript type integration, new rule
+families (accessibility, performance, security), expansion to other
+frameworks (Flutter, .NET MAUI, native Android/iOS), AI-driven auto-fix
+of submitted UX issues, GitHub Actions integration — lives in
+[`future_work/todo.md`](future_work/todo.md). If you're picking the
+project up next, that's the file to read first.
+
+---
+
+## 🔴 Must do — real gaps before release
 
 These are the items that, if a careful reviewer pokes at the project,
-they would notice. None of them are optional polish.
+they would notice. None of them were optional polish.
 
 - [x] **Improve element identification** — `pickBestEntry`
   in `packages/runtime-lib/src/identify/identifyAtPoint.ts` now uses
@@ -27,7 +46,7 @@ they would notice. None of them are optional polish.
   (thumbnail + screen/component + note). Tap a note to edit it
   inline, tap × to delete that single annotation. Backed by new
   `deleteAnnotation` / `updateAnnotationNote` context methods that
-  persist to AsyncStorage. _Needs on-device verification._
+  persist to AsyncStorage. _Verified on device._
 
 - [x] **After-screenshot workflow (documented)** — added a full
   step-by-step "Full workflow" section to
@@ -43,11 +62,11 @@ they would notice. None of them are optional polish.
   are reported as `uncertain` with a clear "resize to ~1500px and
   re-run" message instead of failing cryptically mid-batch.
 
-- [ ] **Real runtime UX audit screenshots in the README** — once the
-  runtime module is polished, capture 1–2 screenshots showing the
-  annotation modal in action and add them under
-  `docs/screenshots/`. README already references them. **~15 min
-  after the module is final.**
+- [x] **Runtime UX audit walkthrough** — addressed differently than
+  originally planned. Instead of static screenshots, the runtime mode
+  now has a full YouTube walkthrough video linked from the root
+  README. The video shows the in-app annotation flow, the cloud sync,
+  and the triage flow on the dashboard end-to-end.
 
 ---
 
@@ -113,4 +132,7 @@ If you're a contributor or coding agent picking up an item:
 4. Keep the priority order intact — don't promote nice-to-haves into
    must-dos without reason.
 
-— Last updated: 2026
+For brand-new ideas that aren't in this file, see
+[`future_work/todo.md`](future_work/todo.md).
+
+— Last updated: June 2026

@@ -1,4 +1,4 @@
-# AGENT.md
+# AGENTS.md
 
 Guidance for coding agents (Claude Code, Cursor, Codex CLI, GitHub
 Copilot Agent, etc.) working in this repository.
@@ -15,24 +15,31 @@ ArchLens is a two-mode architectural / UX evaluation toolkit for
 React Native projects:
 
 - **archlens-statik** — static code analyzer (Node + TypeScript +
-  Babel) with a React + Vite + Tailwind web UI
-- **archlens-runtime** — a React Native library + companion CLI that
-  captures live UX issues and verifies fixes with Claude vision
+  Babel) with a React + Vite + Tailwind web UI.
+- **archlens-runtime** — a React Native library that captures live
+  UX issues from a real device, syncs them through a Fastify cloud
+  API backed by Supabase, and shows them to developers in a web
+  dashboard for triage. A legacy `runtime-verify` CLI also exists
+  for the original markdown-export → Claude-vision verify flow.
 
 The repo is an **npm workspaces monorepo** with the following
 packages under `packages/`:
 
 | Package | Stack | Role |
 |---|---|---|
-| `@archlens/ai-client` | TS, Anthropic SDK | Single Claude client shared by statik + runtime |
+| `@archlens/ai-client` | TS, Anthropic SDK | Single Claude client shared across modules |
 | `@archlens/statik-backend` | Node + TS + Express + Babel + Madge | AST analyzer, 8 rules, scoring, HTTP API |
 | `@archlens/statik-frontend` | Vite + React + Tailwind (JSX) | Upload UI + report viewer |
-| `@archlens/runtime` | React Native + TS | `<ArchLensProvider>`, FAB, capture, export |
-| `@archlens/verify` | Node + TS CLI | Reads exported Markdown, calls Claude vision, writes verdicts |
+| `@archlens/runtime` | React Native + TS | `<ArchLensProvider>`, FAB, capture, cloud sync |
+| `@archlens/cloud-api` | Node + TS + Fastify + Supabase | Receives annotations from runtime, stores in Supabase |
+| `@archlens/dashboard-web` | Vite + React + Tailwind + TS | Triage dashboard for developers (issue inbox, status, drilldown) |
+| `@archlens/verify` | Node + TS CLI | Legacy: reads exported Markdown, calls Claude vision, writes verdicts |
 | `@archlens/runtime-demo` | Expo SDK 54 + RN 0.81 + React 19 | Sample app for testing the runtime library |
 
 Plus `tests/` (three sample RN projects: `good-app`, `bad-app`,
-`unusual-layout-app`) and `demo/` (curated end-to-end fixtures).
+`unusual-layout-app`), `demo/` (curated end-to-end fixtures),
+`supabase/` (Postgres migrations + storage policies), and `docs/`
+(idea, project text, poster, slides, screenshots).
 
 ---
 
@@ -53,15 +60,20 @@ If you find yourself adding an AI call that determines *whether*
 something is a violation, you have probably stepped outside the
 project's design.
 
-### 2. The two modes are independent but share one AI client
+### 2. One package per external service
 
-`@archlens/ai-client` is the only package that imports the Anthropic
-SDK. Both `statik-backend` and `runtime-verify` go through it. Do
-not add a second Anthropic SDK dependency anywhere.
+- `@archlens/ai-client` is the only package that imports the Anthropic
+  SDK. Both `statik-backend` and `runtime-verify` go through it. Do
+  not add a second Anthropic SDK dependency anywhere.
+- `@archlens/cloud-api` is the only package that holds the Supabase
+  `service_role` key. The runtime SDK and dashboard talk to it over
+  HTTP — they never see `service_role`. The dashboard authenticates
+  via the public `anon` key + Supabase Auth.
 
 ### 3. Determinism is enforced at the data layer
 
-The statik report (`Report` type) and the runtime export
+The statik report (`Report` type), the runtime cloud payload
+(`archlens-runtime-cloud@1` schema), and the runtime export
 (`archlens-runtime-export@1` schema) are **stable, machine-parseable
 formats**. They define the contract between modules. Do not change
 their shape without bumping the schema version and updating every
@@ -69,10 +81,17 @@ downstream consumer.
 
 ### 4. Privacy of API keys
 
-The Anthropic API key lives in `.env` at the workspace root, which is
-git-ignored. Never commit it. Never paste it into chat. Never log it.
-`.env.example` is the template — it stays in the repo with blank
-values.
+The Anthropic API key and Supabase keys live in `.env` at the
+workspace root, which is git-ignored. Never commit them. Never paste
+them into chat. Never log them. `.env.example` is the template — it
+stays in the repo with blank values.
+
+Specifically, the following must NEVER reach a commit, a log line, or
+a chat message:
+- `ANTHROPIC_API_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — bypasses all row-level security
+- `SUPABASE_URL` may be present in client builds, but never the
+  service-role pair
 
 ### 5. Strict TypeScript everywhere
 
@@ -95,10 +114,12 @@ npm run statik:backend:dev                 # dev server on :8000
 npm run statik:frontend:dev                # Vite UI on :5173
 npm run test:statik                        # unit tests for the 8 rules
 
-# Runtime
+# Runtime (live UX audit pipeline)
+npm run cloud:dev                          # Fastify cloud API on :8787
+npm run dashboard:dev                      # triage dashboard on :5174
 cd packages/runtime-demo && npx expo start # Expo dev menu + QR code
 
-# Verify CLI
+# Verify CLI (legacy mode)
 npm run runtime:verify:build
 node packages/runtime-verify/dist/cli.js --help
 
@@ -186,8 +207,10 @@ for dev-mode "staging" builds. Do not break this contract.
   `*-real-verified.md` artifacts. The `.gitignore` covers these.
 - ❌ Do not add an Anthropic SDK dependency outside
   `@archlens/ai-client`.
-- ❌ Do not change the `archlens-runtime-export@1` schema without
-  bumping the version.
+- ❌ Do not use the Supabase `service_role` key outside
+  `@archlens/cloud-api`. The dashboard and runtime SDK never touch it.
+- ❌ Do not change the `archlens-runtime-export@1` or
+  `archlens-runtime-cloud@1` schemas without bumping the version.
 - ❌ Do not introduce blue (`#235C8D`) anywhere in the UI — the
   project's monochrome paper aesthetic deliberately avoids it.
 
@@ -202,6 +225,9 @@ each one. When you pick up an item from there, follow the convention
 documented at the bottom of that file (mark `[~]` while working,
 `[x]` when shipped).
 
+For longer-horizon ideas beyond the current cycle, see
+[`future_work/todo.md`](./future_work/todo.md).
+
 ---
 
 ## Getting help
@@ -213,4 +239,4 @@ than moving fast.
 
 If you're a human reviewing an agent's PR, this file is the rubric.
 
-— Last updated: 2026
+— Last updated: June 2026
